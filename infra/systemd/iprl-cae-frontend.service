@@ -1,0 +1,18 @@
+[Unit]
+Description=IPRL CAE Hub frontend
+After=network.target iprl-cae-backend.service
+
+[Service]
+Type=simple
+User=iprlcae
+Group=iprlcae
+WorkingDirectory=/opt/iprl-cae-hub/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

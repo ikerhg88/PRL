@@ -1,0 +1,225 @@
+# RPA connector manifest template.
+# This file describes business operations and data-scope guards.
+# It is not a provider API contract and must not contain secrets.
+
+manifest_version: "1.0"
+connector_key: "connector_rpa_provider_slug"
+provider_name: "Provider name"
+platform_family: "provider_family"
+mode: "authorized_rpa"
+enabled_by_default: false
+dry_run_supported: true
+manual_approval_required: true
+
+authorization:
+  contract_reference: "requisitos/autorizaciones/provider/contract.pdf"
+  authorized_companies:
+    - local_company_id: null
+      local_company_tax_id: "B00000000"
+      external_company_name: "ARM ..."
+      external_company_id: null
+  allowed_operations:
+    - "upsert_worker"
+    - "upload_worker_document"
+    - "upload_company_document"
+    - "read_external_status"
+
+entry:
+  login_url: "https://example.invalid/login"
+  expected_hosts:
+    - "example.invalid"
+  human_assisted_controls:
+    captcha: "human_action_required"
+    mfa: "human_action_required"
+    legal_notice: "human_action_required"
+
+login_methods:
+  - key: "single_page_password"
+    description: "Username and password are visible in the same login step."
+    enabled: false
+    evidence_required: "redacted_capture_or_official_docs"
+    expected_signals:
+      - "username_field_visible"
+      - "password_field_visible"
+    human_handoff:
+      - "captcha"
+      - "mfa"
+      - "legal_notice"
+      - "session_conflict"
+  - key: "two_step_password"
+    description: "Username is submitted before the password field appears."
+    enabled: false
+    evidence_required: "redacted_capture_or_official_docs"
+    expected_signals:
+      - "username_step_visible"
+      - "password_step_visible"
+    human_handoff:
+      - "captcha"
+      - "mfa"
+      - "legal_notice"
+      - "session_conflict"
+
+account_context_methods:
+  - key: "confirm_authorized_company"
+    description: "Confirm that the external company/client matches the platform account."
+    enabled: true
+    stop_if_ambiguous: true
+    expected_signals:
+      - "external_company_matches_manifest"
+      - "authorized_host_visible"
+
+navigation_recipes:
+  read_external_status:
+    variants:
+      - key: "document_status_table"
+        enabled: false
+        evidence_required: "approved_structure_snapshot"
+        steps:
+          - name: "open_documents_area"
+            expected_signal: "documents_area_visible"
+          - name: "open_status_list"
+            expected_signal: "status_table_or_grid_visible"
+
+mapping_variants:
+  read:
+    - key: "status_table_v1"
+      enabled: false
+      review_status: "needs_review"
+      required_standard_keys:
+        - "worker.full_name"
+        - "document.type"
+        - "document.status"
+      optional_standard_keys:
+        - "document.expires_at"
+        - "document.rejection_reason"
+  write:
+    - key: "upload_worker_document_v1"
+      enabled: false
+      review_status: "disabled_until_reversible_probe"
+      requires:
+        - "approved_field_mapping"
+        - "dry_run_preview"
+        - "manual_approval_before"
+        - "manual_approval_after"
+
+scope_guards:
+  require_platform_account_company_link: true
+  require_local_company_match: true
+  require_external_company_confirmation: true
+  stop_if_multiple_companies_without_match: true
+  stop_if_unexpected_company_visible: true
+
+operations:
+  upsert_worker:
+    entity_type: "worker"
+    required_permissions:
+      - "worker.read"
+      - "connector.execute"
+      - "connector.approve"
+    local_preconditions:
+      - "worker.company_id == platform_account.company_id"
+      - "worker.status != deleted"
+      - "preview_job.approved == true"
+    required_fields:
+      - "worker.first_name"
+      - "worker.last_name"
+    optional_fields:
+      - "worker.identifier_type"
+      - "worker.identifier_value"
+      - "worker.identifier_expires_at"
+      - "worker.work_position"
+      - "worker.work_center_name"
+      - "worker.medical_fitness_status"
+      - "worker.medical_fitness_expires_at"
+    privacy_rules:
+      medical_data: "fitness_only_no_clinical_history"
+      identifiers: "only_when_required_by_contract"
+    navigation:
+      start: "home"
+      steps:
+        - name: "select_authorized_company"
+          expected_signal: "external_company_matches_manifest"
+        - name: "open_workers_area"
+          expected_signal: "workers_area_visible"
+        - name: "open_worker_form"
+          expected_signal: "worker_form_visible"
+        - name: "fill_worker_form"
+          expected_signal: "mapped_fields_present"
+        - name: "review_before_save"
+          expected_signal: "dry_run_or_human_approval"
+        - name: "save_worker"
+          expected_signal: "success_or_validation_errors"
+    evidence:
+      capture: "minimal_redacted"
+      include:
+        - "operation"
+        - "local_worker_id"
+        - "external_status"
+        - "timestamp"
+      exclude:
+        - "password"
+        - "cookies"
+        - "tokens"
+        - "unrelated_company_data"
+
+  upload_worker_document:
+    entity_type: "document_version"
+    required_permissions:
+      - "document.read"
+      - "connector.execute"
+      - "connector.approve"
+    local_preconditions:
+      - "document.entity_type == worker"
+      - "worker.company_id == platform_account.company_id"
+      - "document_version.sha256 is present"
+      - "document_type has external mapping"
+    required_fields:
+      - "document_type.external_code"
+      - "document_version.file_storage_key"
+      - "document_version.sha256"
+    optional_fields:
+      - "document_version.expires_at"
+      - "document_version.issued_at"
+    navigation:
+      start: "worker_detail"
+      steps:
+        - name: "open_documents_area"
+          expected_signal: "documents_area_visible"
+        - name: "select_document_type"
+          expected_signal: "external_document_type_selected"
+        - name: "upload_file"
+          expected_signal: "file_attached"
+        - name: "fill_dates"
+          expected_signal: "dates_valid"
+        - name: "review_before_submit"
+          expected_signal: "dry_run_or_human_approval"
+        - name: "submit_document"
+          expected_signal: "success_or_validation_errors"
+    evidence:
+      capture: "minimal_redacted"
+      include:
+        - "operation"
+        - "local_document_id"
+        - "local_version_id"
+        - "sha256"
+        - "external_status"
+        - "timestamp"
+      exclude:
+        - "full_document_text"
+        - "cookies"
+        - "tokens"
+
+external_mappings:
+  document_types_file: "provider_slug_document_types.yaml"
+  field_mappings_file: "provider_slug_fields.yaml"
+
+runtime:
+  max_entities_per_job: 20
+  max_upload_bytes: 25000000
+  retry_policy:
+    max_attempts: 1
+    retry_on_validation_error: false
+    retry_on_login_error: false
+  audit:
+    before_action: true
+    after_action: true

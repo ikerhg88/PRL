@@ -1,0 +1,101 @@
+source_date: "2026-05-16"
+service:
+  name: "Konvergia"
+  legal_entity: "KONVERGIA PLATAFORMAS AGRUPADAS A.I.E."
+  cif: "V88409313"
+  address: "C/Aguacate, nº 41, Portal B4, 28054 Madrid"
+  privacy_email: "hola@konvergia.com"
+  dpo_email: "dpo@konvergia.com"
+  status:
+    public_site: "closing; new registrations disabled"
+    hub_indexed_notice: "cessation of activity including document transfer on 2026-06-19"
+problem_statement:
+  - "Contractors and subcontractors had to upload the same CAE/PRL documents repeatedly to multiple platforms."
+  - "Konvergia connected CAE platforms so one upload could be distributed to other associated platforms."
+functional_model:
+  upload_once_distribute_many: true
+  validates_by_destination_platform: true
+  common_document_catalog: true
+  common_document_catalog_size_publicly_claimed: ">300"
+  dashboard_fields:
+    - datetime
+    - company_or_worker
+    - origin_platform
+    - destination_platforms
+    - document_type
+    - file
+    - document_code
+  modes_described_by_nalanda:
+    - send_receive
+    - receive_only
+    - send_only
+platforms_publicly_mentioned:
+  - UCAE
+  - Dokify
+  - Metacontratas
+  - EcoGestor
+  - Nalanda
+  - Tesicnor
+  - Construred
+  - 6Conecta
+  - SGred
+timeline:
+  - year: 2018
+    event: "Initial meetings and technical feasibility work began according to Metacontratas."
+  - year: 2019
+    event: "Konvergia announced as association/AIE and beta project with several platforms."
+  - date: "2021-05"
+    event: "Public beta/beta tester announcement."
+  - date: "2021-06"
+    event: "+200 beta companies and +10,000 transferred documents reported."
+  - date: "2022-01"
+    event: "Control panel and >300 document-type catalog described publicly."
+  - date: "2024-05"
+    event: "Nalanda announced integration into Konvergia."
+  - year: 2026
+    event: "Public closure notice; hub search result states transfers cease on 2026-06-19."
+company_document_types_normalized:
+  - CAE.COMPANY.INCORPORATION_DEED
+  - CAE.COMPANY.TAX_ID
+  - CAE.COMPANY.MUTUAL_INSURANCE
+  - CAE.COMPANY.RC_POLICY
+  - CAE.COMPANY.RC_RECEIPT
+  - CAE.COMPANY.AEAT_CLEARANCE
+  - CAE.COMPANY.CONVENTION_INSURANCE_POLICY
+  - CAE.COMPANY.CONVENTION_INSURANCE_RECEIPT
+  - CAE.COMPANY.REA
+  - CAE.COMPANY.SOCIAL_SECURITY_CLEARANCE
+  - CAE.COMPANY.RLC_TC1
+  - CAE.COMPANY.RNT_TC2
+  - CAE.COMPANY.ITA
+  - CAE.COMPANY.PREVENTION_SERVICE_RECEIPT
+  - CAE.COMPANY.QUALITY_MANAGEMENT_SYSTEM
+  - CAE.COMPANY.ENVIRONMENTAL_MANAGEMENT_SYSTEM
+  - CAE.COMPANY.RISK_ASSESSMENT
+  - CAE.COMPANY.IAE
+  - CAE.COMPANY.SALARY_PAYMENT_CERTIFICATE
+worker_document_types_normalized:
+  - CAE.WORKER.IDC_OR_SELF_EMPLOYED_FEE
+  - CAE.WORKER.MACHINE_USE_AUTHORIZATION
+  - CAE.WORKER.MEDICAL_FITNESS_OR_WAIVER
+  - CAE.WORKER.ID_DOCUMENT_OR_WORK_PERMIT
+  - CAE.WORKER.PPE_DELIVERY
+  - CAE.WORKER.BASIC_PRL_COURSE
+  - CAE.WORKER.POSITION_TRAINING_CERTIFICATE
+  - CAE.WORKER.RISK_INFORMATION_DELIVERY
+known_limitations:
+  - "No public API documentation found."
+  - "Customer-specific forms are not included in the common document catalog."
+  - "Each destination platform validates with its own criteria."
+  - "The service is closing, so it should be used as a reference model only."
+  - "Access to the hub requires credentials."
+recommended_iker_patterns:
+  - "common_document_catalog"
+  - "platform_requirement_mapping"
+  - "send_receive_modes"
+  - "transfer_dashboard"
+  - "external_status_per_platform"
+  - "versioned_documents"
+  - "latest_version_policy_with_overrides"
+  - "manual_export_fallback"
+  - "authorized_rpa_only_where_allowed"

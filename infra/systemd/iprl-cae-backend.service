@@ -1,0 +1,17 @@
+[Unit]
+Description=IPRL CAE Hub backend
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=iprlcae
+Group=iprlcae
+WorkingDirectory=/opt/iprl-cae-hub/backend
+EnvironmentFile=/etc/iprl-cae-hub/backend.env
+ExecStart=/opt/iprl-cae-hub/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,142 @@
+# Field mapping template for one provider.
+# Do not put credentials or personal sample values here.
+
+mapping_version: "1.0"
+provider_name: "Provider name"
+connector_key: "connector_rpa_provider_slug"
+
+mapping_variants:
+  - key: "default_read_status"
+    operation: "read_external_status"
+    review_status: "needs_review"
+    evidence_source: "redacted_capture_or_official_docs"
+    applies_when:
+      portal_version: ""
+      language: "es"
+      account_context: ""
+    required_entity_resolution:
+      - "tenant_id"
+      - "company_id"
+      - "platform_account_id"
+    fallback: "manual_followup_required"
+  - key: "default_upload_worker_document"
+    operation: "upload_worker_document"
+    review_status: "disabled_until_approved"
+    evidence_source: "contract_plus_reversible_probe"
+    requires:
+      - "approved_field_mapping"
+      - "approved_document_type_mapping"
+      - "dry_run_preview"
+      - "manual_approval_before"
+      - "manual_approval_after"
+    fallback: "manual_export"
+
+company:
+  local_to_external:
+    name:
+      source: "company.name"
+      external_label: "Razon social"
+      required: true
+    tax_id:
+      source: "company.tax_id"
+      external_label: "CIF/NIF"
+      required: true
+
+worker:
+  local_to_external:
+    first_name:
+      source: "worker.first_name"
+      external_label: "Nombre"
+      required: true
+    last_name:
+      source: "worker.last_name"
+      external_label: "Apellidos"
+      required: true
+    identifier_type:
+      source: "worker.identifier_type"
+      external_label: "Tipo documento"
+      required: false
+      allowed_when: "contract_requires_identifier"
+    identifier_value:
+      source: "worker.identifier_value"
+      external_label: "Numero documento"
+      required: false
+      allowed_when: "contract_requires_identifier"
+    identifier_expires_at:
+      source: "worker.identifier_expires_at"
+      external_label: "Caducidad documento"
+      required: false
+    work_position:
+      source: "worker.work_position"
+      external_label: "Puesto"
+      required: false
+    work_center_name:
+      source: "worker.work_center_name"
+      external_label: "Centro"
+      required: false
+    medical_fitness_status:
+      source: "worker.medical_fitness_status"
+      external_label: "Aptitud"
+      required: false
+      privacy: "fitness_only"
+    medical_fitness_expires_at:
+      source: "worker.medical_fitness_expires_at"
+      external_label: "Caducidad aptitud"
+      required: false
+
+document_version:
+  local_to_external:
+    document_type:
+      source: "document_type.code"
+      external_label: "Tipo documento"
+      required: true
+      mapping_table: "document_types"
+    file:
+      source: "document_version.file_storage_key"
+      external_label: "Fichero"
+      required: true
+    issued_at:
+      source: "document_version.issued_at"
+      external_label: "Fecha emision"
+      required: false
+    expires_at:
+      source: "document_version.expires_at"
+      external_label: "Fecha caducidad"
+      required: false
+    sha256:
+      source: "document_version.sha256"
+      external_label: "Hash local"
+      required: true
+      external_write: false
+
+document_types:
+  - local_code: "CAE.COMPANY.AEAT_CLEARANCE"
+    external_name: ""
+    external_code: ""
+    entity_scope: "company"
+    requires_expiration: true
+  - local_code: "CAE.COMPANY.SS_CLEARANCE"
+    external_name: ""
+    external_code: ""
+    entity_scope: "company"
+    requires_expiration: true
+  - local_code: "CAE.WORKER.BASIC_PRL_COURSE"
+    external_name: ""
+    external_code: ""
+    entity_scope: "worker"
+    requires_expiration: false
+  - local_code: "CAE.WORKER.MEDICAL_FITNESS"
+    external_name: ""
+    external_code: ""
+    entity_scope: "worker"
+    requires_expiration: true
+
+status_mapping:
+  accepted:
+    external_values: []
+  pending_review:
+    external_values: []
+  rejected:
+    external_values: []
+  expired:
+    external_values: []

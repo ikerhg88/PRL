@@ -1,0 +1,109 @@
+# IPRL/CAE Hub runtime configuration.
+# This file is safe to version because it contains no real secrets.
+# Secrets must stay in the server environment or in /etc/iprl-cae-hub/backend.env.
+#
+# Override this path with:
+#   IPRL_CAE_CONFIG_FILE=/etc/iprl-cae-hub/config.toml
+#
+# Precedence, highest first:
+#   1. explicit constructor values used by tests
+#   2. IPRL_CAE_* environment variables
+#   3. .env
+#   4. this TOML file
+#   5. code defaults
+
+app_name = "IPRL/CAE Hub"
+environment = "server"
+api_prefix = "/api/v1"
+public_base_url = "http://localhost:8000"
+frontend_base_url = "http://localhost:3000"
+cors_origins_raw = "http://localhost:3000,http://127.0.0.1:3000"
+
+# Default services for a server install. Override placeholders with
+# IPRL_CAE_* environment variables or an unversioned config file.
+database_url = "postgresql+psycopg://iprl_cae:replace-with-db-password@localhost:5432/iprl_cae"
+redis_url = "redis://localhost:6379/0"
+document_storage_path = "./storage/documents"
+max_upload_bytes = 52428800
+
+secret_key = "replace-with-server-secret-of-at-least-32-characters"
+log_level = "INFO"
+sso_state_ttl_minutes = 10
+sso_access_token_minutes = 480
+email_verification_ttl_minutes = 1440
+auth_dev_tokens_enabled = false
+trusted_header_auth_enabled = false
+
+# Optional non-secret Google client id can be copied here, but production should
+# normally use IPRL_CAE_GOOGLE_OIDC_CLIENT_ID.
+google_oidc_client_id = ""
+
+[auth]
+local_login_enabled = true
+signup_enabled = true
+email_verification_required = true
+password_min_length = 10
+mfa_required_for_admins = false
+
+[sso]
+enabled = true
+default_provider = "google"
+state_ttl_minutes = 10
+access_token_minutes = 480
+allowed_redirect_hosts = ["localhost:3000", "127.0.0.1:3000"]
+
+[sso.google]
+enabled = true
+client_id_env = "IPRL_CAE_GOOGLE_OIDC_CLIENT_ID"
+client_secret_env = "IPRL_CAE_GOOGLE_OIDC_CLIENT_SECRET"
+issuer = "https://accounts.google.com"
+discovery_url = "https://accounts.google.com/.well-known/openid-configuration"
+redirect_path = "/auth/google/callback"
+scopes = ["openid", "email", "profile"]
+allowed_domains = []
+auto_provision_default = false
+
+[mail]
+provider = "console"
+from_email = "no-reply@example.local"
+smtp_host_env = "IPRL_CAE_SMTP_HOST"
+smtp_port_env = "IPRL_CAE_SMTP_PORT"
+smtp_user_env = "IPRL_CAE_SMTP_USER"
+smtp_password_env = "IPRL_CAE_SMTP_PASSWORD"
+
+[ocr]
+enabled = true
+require_human_review = true
+tesseract_cmd_env = "TESSERACT_CMD"
+tessdata_prefix_env = "TESSDATA_PREFIX"
+store_full_text = false
+max_pages_per_file = 50
+
+[connectors]
+commercial_connectors_enabled = false
+demo_connector_enabled = true
+manual_export_enabled = true
+erp_connectors_enabled = false
+rpa_enabled = false
+rpa_requires_manual_approval = true
+
+[jobs]
+backend = "redis"
+queue_name = "iprl-cae"
+retry_attempts = 3
+retry_backoff_seconds = 60
+
+[retention]
+audit_log_days = 1825
+rejected_document_days = 365
+expired_document_days = 1825
+ocr_intake_days = 90
+
+[features]
+worker_bulk_upload = true
+worker_erp_import = false
+platform_api_connectors = false
+platform_rpa_connectors = false
+google_sso = true
+saas_reseller_mode = true
+system_admin_console = true
