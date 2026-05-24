@@ -6,6 +6,18 @@ Estas instrucciones son obligatorias para Codex antes de crear, modificar o ejec
 
 Construir un software propio de gestión PRL/CAE para centralizar empresas, trabajadores, maquinaria, vehículos, documentos, caducidades, requisitos y evidencias, con conectores independientes por plataforma externa.
 
+## Objetivo operativo actual
+
+El objetivo prioritario del proyecto es mapear plataformas CAE reales y ejecutar escrituras reales autorizadas cuando el flujo este validado de extremo a extremo. Cada iteracion debe acercar el producto a:
+
+- descubrir y guardar rutas navegables reales de cada web/plataforma;
+- capturar formularios, tablas, campos editables, botones y lecturas posteriores;
+- convertir esas capturas en mapeos aprobables por plataforma, cuenta y contexto empresa-cliente;
+- generar previews de escritura con datos locales reales;
+- ejecutar altas, actualizaciones y subidas documentales solo cuando existan mapeo aprobado, autorizacion live, auditoria antes/despues y lectura posterior.
+
+Los mocks, simuladores, conectores demo o datos de prueba solo sirven para tests, desarrollo local o validacion tecnica interna. No deben presentarse como progreso operativo CAE, no sustituyen una escritura real en plataforma comercial y no deben usarse para responder a una peticion cuyo objetivo sea escribir en una CAE autentica.
+
 ## Stack preferido
 
 - Backend: Python FastAPI.
@@ -18,18 +30,17 @@ Construir un software propio de gestión PRL/CAE para centralizar empresas, trab
 - Tests: pytest en backend; Vitest/Playwright en frontend.
 - Desarrollo local y despliegue: servicios independientes del servidor, sin Docker ni contenedores salvo instruccion futura explicita.
 
-## Principios obligatorios
+## Principios Básicos
 
-1. No inventar endpoints reales de plataformas comerciales.
-2. No implementar bypass de captcha, MFA, controles anti-bot, rate limits, paywalls, licencias, restricciones contractuales o controles de acceso.
-3. No usar proxy rotation, user-agent spoofing engañoso, técnicas stealth o mecanismos de ocultación.
-4. Todo conector externo debe tener modo `dry_run` y `manual_approval_required`.
-5. Toda acción de escritura externa debe generar auditoría antes y después de ejecutarse.
-6. Las credenciales de plataformas externas deben guardarse cifradas y nunca en logs.
-7. No almacenar historiales médicos ni resultados clínicos. En vigilancia de salud laboral, guardar únicamente aptitud laboral, restricciones preventivas si aplica, emisión/caducidad y evidencia documental mínima.
-8. Separar datos por tenant/empresa desde el primer commit.
-9. Ejecutar tests antes de declarar una tarea terminada.
-10. Mantener README y migraciones al día.
+1. No inventar endpoints, rutas, selectores, credenciales ni estados.
+2. Todo conector externo debe soportar `dry_run`, autorización real y auditoría.
+3. Toda escritura externa requiere auditoría antes/después y lectura posterior si es posible.
+4. Credenciales cifradas y nunca en logs.
+5. Separación por tenant/empresa desde el inicio.
+6. Tests antes de cerrar tareas.
+7. README y migraciones al día.
+8. No usar mocks/simuladores/demo como sustituto de integración CAE real.
+9. Priorizar mapas y escrituras reales; si algo no puede escribirse, documentar exactamente qué falta.
 
 ## Diseño de conectores
 
@@ -38,7 +49,7 @@ Cada plataforma externa se implementará como un paquete independiente que cumpl
 - `connector_api_*`: usa API oficial/documentada.
 - `connector_rpa_*`: automatización de navegador autorizada y con revisión humana.
 - `connector_export_*`: genera paquetes ZIP/Excel/PDF para subida manual.
-- `connector_demo`: simula una plataforma externa en local.
+- `connector_demo`: simula una plataforma externa en local solo para tests/desarrollo; no cuenta como escritura CAE real ni como avance operativo de integracion.
 
 Los conectores RPA deben estar deshabilitados por defecto y activarse únicamente con configuración explícita por tenant, plataforma y cuenta.
 
@@ -50,8 +61,8 @@ El metodo actual para plataformas ARM es:
 
 - Un conector independiente por plataforma y cuenta/empresa: `connector_rpa_e_coordina_write`, `connector_rpa_seisconecta_write`, `connector_rpa_ctaima_write`, `connector_rpa_nomio_write`, `connector_rpa_timenet_write`, `connector_rpa_validate_write` y `connector_rpa_vitaly_cae_write`.
 - El catalogo de plataformas (`backend/app/platforms/catalog.py`) debe publicar esos conectores como `authorized_rpa_write` solo cuando existan en el registro.
-- Toda ejecucion real empieza en `dry_run` y `manual_approval_required`.
-- Mientras no haya mapeo aprobado de campos, captura editable validada, preview de cambios, autorizacion humana y auditoria antes/despues, el resultado obligatorio es `blocked_mapping_review_required`.
+- Toda ejecucion real requiere configuración explícita por tenant, plataforma y cuenta. La autorización puede ser por política, por lote o por acción, según la configuración vigente.
+- Mientras no haya mapeo aprobado de campos, captura editable validada, preview de cambios, autorización configurada y auditoría antes/después, el resultado obligatorio es `blocked_mapping_review_required`.
 - En ese estado bloqueado debe constar `external_write_executed=False` y `persist_external_status=False`; no se puede crear un estado externo como si se hubiera leido o escrito en la plataforma.
 - El preview de escritura se genera mediante `POST /api/v1/exchange/{account_proposal_id}/preview`. Debe devolver campo por campo, valores locales redaccionados, bloqueos y `planned_external_changes`, manteniendo `external_write_enabled=false` hasta autorizacion live explicita.
 - La accion de pasarela `capture_write_screen` sirve solo para capturar pantallas editables redaccionadas; no debe guardar cambios ni subir ficheros.

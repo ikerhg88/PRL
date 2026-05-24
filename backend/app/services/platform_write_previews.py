@@ -97,7 +97,7 @@ def build_write_operation_preview(
     for key in operation_required_keys(manifest.platform_slug, operation):
         method = field_methods.get(key)
         value = local_values.get(key)
-        field_payload = _field_preview(key=key, method=method, value=value)
+        field_payload = _field_preview(key=key, operation=operation, method=method, value=value)
         fields.append(field_payload)
         blockers.extend(field_payload["blockers"])
 
@@ -172,6 +172,7 @@ def build_write_operation_preview(
             "captcha_bypass": False,
             "mfa_bypass": False,
             "stores_static_commercial_selectors": False,
+            "stores_only_reviewed_captured_write_paths": True,
             "stores_credentials_or_tokens": False,
             "live_external_write_requires_submit_job": True,
         },
@@ -276,7 +277,13 @@ def _operation_method(context: dict[str, Any], operation: str) -> dict[str, Any]
     return None
 
 
-def _field_preview(*, key: str, method: dict[str, Any] | None, value: dict[str, Any] | None) -> dict[str, Any]:
+def _field_preview(
+    *,
+    key: str,
+    operation: str,
+    method: dict[str, Any] | None,
+    value: dict[str, Any] | None,
+) -> dict[str, Any]:
     blockers: list[dict[str, str]] = []
     if method is None:
         blockers.append(_blocker("mapping_missing", key, "No hay metodo de edicion para este campo."))
@@ -294,7 +301,7 @@ def _field_preview(*, key: str, method: dict[str, Any] | None, value: dict[str, 
             "next_action": "Mapear el campo desde contrato o captura editable autorizada.",
         }
 
-    method_status = str(method.get("status"))
+    method_status = _method_status_for_operation(method, operation)
     sendable = method_status in FIELD_METHOD_READY_STATUSES
     if not sendable:
         blocker_kind = "mapping_review_required" if method_status == "needs_mapping_review" else "mapping_missing"
@@ -319,10 +326,26 @@ def _field_preview(*, key: str, method: dict[str, Any] | None, value: dict[str, 
         "observed_label_count": int((method.get("evidence_summary") or {}).get("observed_label_count") or 0),
         "editable_label_count": int((method.get("evidence_summary") or {}).get("editable_label_count") or 0),
         "mapping_count": int((method.get("evidence_summary") or {}).get("mapping_count") or 0),
+        "write_path_count": int((method.get("evidence_summary") or {}).get("write_path_count") or 0),
+        "approved_write_path_count": int(
+            (method.get("evidence_summary") or {}).get("approved_write_path_count") or 0
+        ),
         "mapping_review_statuses": list((method.get("evidence_summary") or {}).get("mapping_review_statuses") or []),
+        "approved_write_path_operations": list(method.get("approved_write_path_operations") or []),
         "blockers": blockers,
         "next_action": method.get("next_action"),
     }
+
+
+def _method_status_for_operation(method: dict[str, Any], operation: str) -> str:
+    approved_operations = set(method.get("approved_write_path_operations") or [])
+    pending_operations = set(method.get("pending_write_path_operations") or [])
+    if operation in approved_operations:
+        return "ready_for_preview"
+    method_status = str(method.get("status") or "needs_mapping")
+    if operation in pending_operations and method_status == "needs_mapping":
+        return "needs_mapping_review"
+    return method_status
 
 
 def _blocker(kind: str, key: str, detail: str) -> dict[str, str]:

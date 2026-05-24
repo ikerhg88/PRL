@@ -42,11 +42,11 @@ templates/            Plantillas de investigacion y autorizacion
 - Catalogo operativo de plataformas: matriz de readiness por operacion, soporte captcha/MFA asistido y prueba de escritura live validada en cuenta dummy autorizada de 6conecta.
 - Catalogo de metodos de edicion: por cada contexto plataforma+empresa y cada campo canonico, declara metodo, estado, evidencia, preview requerido, autorizacion y auditoria antes/despues.
 - Informe de datos obtenidos y correspondencias: PDF/HTML/CSV por plataforma con capturas redaccionadas, etiquetas visibles y campo externo -> campo interno.
-- Conectores RPA de escritura protegida para e-coordina, 6conecta, CTAIMA, Nomio, Timenet, Validate y Vitaly CAE: preparan jobs en dry-run; 6conecta tiene `upsert_worker` live confirmado con lectura posterior y el resto bloquea ejecucion externa hasta helper live especifico, mapeo aprobado completo y lectura posterior.
-- Exchange de escritura por cuenta externa: `GET /api/v1/exchange/write-matrix` resume readiness global, `GET /api/v1/exchange/live-adapters` enumera helper live por plataforma, `POST /api/v1/exchange/workers/bulk-submit` prepara el alta de un trabajador en todas las cuentas con conector, `POST /api/v1/exchange/{account_proposal_id}/preview` calcula operacion/campos/bloqueos sin escribir fuera, `POST /api/v1/exchange/{account_proposal_id}/submit` resuelve plataforma/conector desde la cuenta y delega en transferencias auditadas, y `POST /api/v1/exchange/{account_proposal_id}/capture-write-screen` abre una peticion segura de mapeo editable en pasarela humana.
+- Conectores RPA de escritura protegida para las plataformas activas ARM actuales: e-coordina, 6conecta, CTAIMA, Nomio, Timenet, Validate, Vitaly CAE, Dokyfy, eGestiona, Folyo, IEDOCE, Integra ASEM, Koordinatu, Metacontratas, Quioo, SGS Gestiona, SmartOSH y UCAE. Preparan jobs en dry-run; 6conecta tiene `upsert_worker` live confirmado con lectura posterior y el resto bloquea ejecucion externa hasta helper live especifico, mapeo aprobado completo y lectura posterior.
+- Exchange de escritura por cuenta externa: `GET /api/v1/exchange/write-matrix` resume readiness global, `GET /api/v1/exchange/live-adapters` enumera helper live por plataforma, `GET /api/v1/exchange/write-paths` lista paths de escritura revisables, `POST /api/v1/exchange/{account_proposal_id}/write-paths` guarda paths observados por cuenta/operacion, `POST /api/v1/exchange/write-paths/{path_id}/review` aprueba o rechaza paths con evidencia, `POST /api/v1/exchange/workers/bulk-submit` prepara el alta de un trabajador en todas las cuentas con conector, `POST /api/v1/exchange/{account_proposal_id}/preview` calcula operacion/campos/bloqueos sin escribir fuera, `POST /api/v1/exchange/{account_proposal_id}/submit` resuelve plataforma/conector desde la cuenta y delega en transferencias auditadas, y `POST /api/v1/exchange/{account_proposal_id}/capture-write-screen` abre una peticion segura de mapeo editable en pasarela humana.
 - Ingesta de contratos RPA ARM prioritarios como propuestas deshabilitadas: manifiestos, cuentas saneadas y mapeos revisables.
 - Centro de plataformas ARM: pantalla operativa por combinacion plataforma + empresa + centro, activacion/desactivacion por contexto, conexion asistida de plataformas autorizadas y control de revision para no generar incidencias en contextos desactivados.
-- Conectores RPA ARM: e-coordina, 6conecta, CTAIMA, Nomio, Timenet, Validate y Vitaly CAE quedan registrados con ejecucion protegida por flags, credenciales en memoria y parada ante captcha/MFA/contexto humano. Todas las escrituras externas siguen el mismo contrato: preview, aprobacion humana, lectura previa anti-duplicado, submit autorizado y lectura posterior; sin helper live especifico devuelven `blocked_live_adapter_missing`.
+- Conectores RPA ARM: todas las cuentas activas del Excel vigente quedan cubiertas por conector de escritura protegida o por helper live especifico. Todas las escrituras externas siguen el mismo contrato: preview, aprobacion humana, lectura previa anti-duplicado, submit autorizado y lectura posterior; sin helper live especifico devuelven `blocked_live_adapter_missing`.
 - Visibilidad de estados documentales externos: APIs sobre `external_document_statuses` y resumen operativo en `/notifications`, con evidencia e-coordina resumida y redaccionada cuando hay lectura autorizada; el mapeo read-only confirmado llega a `documentacion_estado`.
 - Auditoria append-only en operaciones de creacion documental, requisitos y transferencias.
 - ARM queda separado de la operativa de plataformas: `/arm` mantiene ficha de empresa, trabajadores y documentos propios; `/platforms`, `/assign-worker`, `/notifications` y `/rpa-gateway` concentran la operativa externa.
@@ -127,8 +127,17 @@ Rutas principales:
 - `GET /api/v1/platform-maps/compare`
 - `GET /api/v1/platform-maps/data-coverage`
 - `GET /api/v1/platform-maps/edit-methods`
+- `GET /api/v1/platform-observations/summary`
+- `GET /api/v1/platform-observations/entities`
+- `GET /api/v1/platform-observations/document-requests`
+- `GET /api/v1/platform-observations/operational-map`
+- `POST /api/v1/exchange/mass-update/plan`
+- `POST /api/v1/exchange/mass-update/submit`
 - `GET /api/v1/exchange/write-matrix`
 - `GET /api/v1/exchange/live-adapters`
+- `GET /api/v1/exchange/write-paths`
+- `POST /api/v1/exchange/{account_proposal_id}/write-paths`
+- `POST /api/v1/exchange/write-paths/{path_id}/review`
 - `POST /api/v1/exchange/capture-write-screens/bulk`
 - `POST /api/v1/exchange/workers/bulk-submit`
 - `POST /api/v1/exchange/{account_proposal_id}/preview`
@@ -364,11 +373,11 @@ Vistas disponibles:
 
 La navegacion principal esta agrupada en `ARM` y `Operativa`. Login, seleccion de empresa, verificacion, Google callback y onboarding mantienen una pantalla limpia sin shell operativo.
 La vista `/arm` mantiene los datos propios de ARM: ficha empresa, listado de trabajadores, detalle editable de cada trabajador, documentos normalizados, ultima subida, descarga y subida de nuevas versiones.
-La vista `/platforms` muestra contextos de plataforma por plataforma + empresa + centro, filtros por plataforma/empresa/centro, activacion/desactivacion, estado de preview de escritura y conexion asistida de plataformas autorizadas.
+La vista `/platforms` muestra contextos de plataforma por plataforma + empresa + centro, filtros por plataforma/empresa/centro, activacion/desactivacion, estado de preview de escritura y conexion asistida de plataformas autorizadas. Consume el mapa `/platform-observations/operational-map` para mostrar lectura, superficies, helper live, paths de escritura y si el contexto esta mapeado read/write.
 La vista `/assign-worker` permite seleccionar o arrastrar trabajadores ARM hacia una o varias plataformas activas y prepara jobs auditados de alta/documentacion.
-La vista `/notifications` resume solo plataformas activas, evidencias pendientes de validacion, incidencias, warnings y acciones de revision.
+La vista `/notifications` resume solo plataformas activas, evidencias pendientes de validacion, incidencias, warnings y acciones de revision. Tambien muestra el plan de `Actualizacion masiva` para preparar desde el Hub altas/documentos pendientes, crear jobs dry-run y abrir pasarelas cuando falte mapeo/helper.
 La vista `/rpa-gateway` muestra la pasarela humana para RPA asistida: es una pantalla propia del Hub, distinta de la web original, donde el operador selecciona o recibe una plataforma, genera el flujo guiado, autoriza entrada en navegador visible, usa credenciales ya configuradas sin volver a pedirlas, resuelve captcha/MFA/aviso si aparece y ve el estado del navegador (`waiting_for_login_form`, `human_control_required`, `credentials_submitted`, `browser_open_for_operator`). El lanzador usa Chromium de Playwright y, si no esta instalado, prueba Chrome o Microsoft Edge del sistema. Cuando la plataforma permite entrar en modo lectura, el helper recoge una captura tecnica redaccionada (titulos, formularios, botones, cabeceras, contadores y senales objetivo, sin cookies, tokens, HTML, HAR, capturas ni valores de fila) y permite `Sincronizar lectura con Hub`. Las acciones de escritura externa (`upsert_worker`, `upload_worker_document`, etc.) deben ejecutarse en jobs separados con preview, mapeo aprobado, aprobacion humana y auditoria.
-La vista `/login` permite entrar con usuario/password y redirige siempre a `/select-company` antes de cualquier pantalla operativa. En la SQLite ARM-only solo aparece `Empresa Demo Industrial, S.L.` y la seleccion queda guardada como contexto activo antes de pasar a la pasarela RPA. El alta SaaS, la verificacion de email y el signup por Google no se muestran en esta pantalla mientras el foco sea la aplicacion.
+La vista `/login` permite entrar con usuario/password y redirige siempre a `/select-company` antes de cualquier pantalla operativa. En la SQLite ARM-only solo aparece `ARM Industrial Assemblies, S.L.` y la seleccion queda guardada como contexto activo antes de pasar a la pasarela RPA. El alta SaaS, la verificacion de email y el signup por Google no se muestran en esta pantalla mientras el foco sea la aplicacion.
 
 Importacion de trabajadores:
 
@@ -404,7 +413,7 @@ Usuario local creado por el seed:
 
 - `demo` / `demo`: acceso rapido al trabajo operativo ARM, redirigido primero a `/select-company`.
 
-El seed local no crea empresas, trabajadores, usuarios ni planes SaaS de muestra. El entorno visible queda limitado a `Empresa Demo Industrial, S.L.`, trabajadores ARM creados desde intake documental y propuestas documentales ARM pendientes de revision.
+El seed local no crea empresas, trabajadores, usuarios ni planes SaaS de muestra. El entorno visible queda limitado a `ARM Industrial Assemblies, S.L.`, trabajadores ARM creados desde intake documental y propuestas documentales ARM pendientes de revision.
 
 Para limpiar una SQLite antigua y dejarla en modo ARM-only:
 
@@ -492,11 +501,11 @@ En esta entrega se ha seguido el requisito del prompt actual: despliegue como se
 
 Resultados verificados en esta iteracion:
 
-- `python -m pytest backend\tests -q`: 42 passed.
-- `python -m ruff check backend\app backend\tests scripts\clean_local_arm_only.py scripts\import_arm_platform_maps.py scripts\import_arm_first_priority_contracts.py scripts\smoke_rpa_gateway_captcha_demo.py scripts\run_due_platform_reviews.py`: OK.
-- `python -m alembic heads`: `0014_platform_review_runs (head)`.
+- `python -m pytest backend\tests -q`: 63 passed.
+- `python -m ruff check backend\app backend\tests scripts`: OK.
+- `python -m alembic heads`: `0016_platform_write_paths (head)`.
 - `npm run typecheck` en `frontend` usando `.tools\node-v24.15.0-win-x64`: OK.
-- `npm test` en `frontend`: 1 archivo, 10 tests passed.
+- `npm test` en `frontend`: 1 archivo, 7 tests passed.
 - `npm run e2e` en `frontend` contra producto local levantado: 1 Playwright test passed.
 - Smoke local ARM-only: `http://127.0.0.1:8001/api/v1/health`, `http://127.0.0.1:3000/login`, acceso `demo/demo`, 1 empresa ARM, 7 trabajadores ARM, 39 intakes ARM, 0 planes SaaS, 0 cuentas mock y 0 runs de pasarela de prueba.
 - Smoke platform maps: 52 etiquetas estandar, 35 snapshots ARM y comparacion `worker.full_name` con 3 plataformas agrupadas.

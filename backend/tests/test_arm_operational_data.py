@@ -25,14 +25,14 @@ def test_arm_worker_document_type_splits_training_variants() -> None:
 
     examples = {
         "Diploma_CARLOS_carretilla.pdf": "CAE.WORKER.FORKLIFT_TRAINING",
-        "Diploma_PLATAFORMA_Carlos.pdf": "CAE.WORKER.MEWP_TRAINING",
+        "Diploma_PLATAFORMA_Santiago.pdf": "CAE.WORKER.MEWP_TRAINING",
         "Diploma_ALTURAS_CARLOS.pdf": "CAE.WORKER.HEIGHT_WORKS_TRAINING",
         "curso_metal_y_reciclaje_03-2023.pdf": "CAE.WORKER.METAL_RECYCLING",
-        "Carlos_metal_4_horas_28-03-2023.pdf": "CAE.WORKER.METAL_TRAINING",
-        "6_-_ART.19_Fernando_-_22-07-2025.pdf": "CAE.WORKER.PRL_ART19",
-        "6_-_PRL_Art.19_Daniel.pdf": "CAE.WORKER.PRL_ART19",
+        "Santiago_metal_4_horas_28-03-2023.pdf": "CAE.WORKER.METAL_TRAINING",
+        "6_-_ART.19_David_-_22-07-2025.pdf": "CAE.WORKER.PRL_ART19",
+        "6_-_PRL_Art.19_Alejandro.pdf": "CAE.WORKER.PRL_ART19",
         "curso_prevencio_n_50_h_iva_n.pdf": "CAE.WORKER.PRL_50H_COURSE",
-        "entrega_EPIs_Alicia.pdf": "CAE.WORKER.PPE_DELIVERY",
+        "entrega_EPIs_Eleder.pdf": "CAE.WORKER.PPE_DELIVERY",
     }
 
     for filename, expected_code in examples.items():

@@ -41,7 +41,7 @@ Usuario local:
 ## Modulos implementados
 
 - Login local con JWT. La UI local de `/login` esta en modo acceso operativo y no muestra alta SaaS.
-- Selector de empresa obligatorio: el `AppShell` redirige a `/select-company` si no hay empresa confirmada; en ARM-only solo se puede confirmar `Empresa Demo Industrial, S.L.`.
+- Selector de empresa obligatorio: el `AppShell` redirige a `/select-company` si no hay empresa confirmada; en ARM-only solo se puede confirmar `ARM Industrial Assemblies, S.L.`.
 - Signup con email/password y verificacion de email conservados como endpoints backend para pruebas controladas.
 - Signup/SSO Google OIDC preparado con PKCE, `state`, `nonce`, dominios permitidos y secretos por entorno.
 - Onboarding de empresa tras alta.
@@ -54,6 +54,12 @@ Usuario local:
 - Operativa de plataformas: `/platforms` gestiona contextos plataforma + empresa + centro, filtros, activacion/desactivacion y conexion asistida de plataformas autorizadas.
 - Alta en plataformas: `/assign-worker` permite seleccionar o arrastrar trabajadores ARM hacia plataformas activas y preparar jobs auditados.
 - Notificaciones: `/notifications` consolida incidencias, warnings, evidencias pendientes y acciones solo de plataformas activas.
+- Estado observado de plataformas: `PlatformObservedEntity` y `PlatformObservedDocumentRequest`
+  normalizan lo leido por plataforma + cuenta/contexto para que `/platforms`, `/assign-worker`
+  y `/notifications` trabajen sobre datos persistidos, no solo sobre evidencias JSON.
+- `/notifications` consume `GET /api/v1/platform-observations/document-requests`
+  para mostrar peticiones externas normalizadas como avisos accionables de
+  origen `Lectura externa normalizada`.
 - OCR intake y reglas CAE se conservan como API/backend, pero sus pantallas antiguas fueron retiradas del frontend operativo nuevo.
 - Reglas CAE: perfiles, requisitos y calculo de cumplimiento por empresa o trabajador.
 - Transferencias: jobs, intentos, exportacion manual ZIP y auditoria.
@@ -132,11 +138,25 @@ Se rehizo el alcance del frontend y se retiraron las pantallas antiguas que ya n
 - Cada trabajador muestra resumen de destinos disponibles y altas ya existentes.
 - Cada contexto de plataforma muestra estado visual por trabajador seleccionado: `disponible`, `ya existe`, `desactivada` o `sin conector`.
 - El boton `Anadir aqui`, drag/drop y `Anadir a todas` filtran destinos ya existentes antes de crear jobs. El backend mantiene el bloqueo final con `409` si alguien intenta repetir el alta.
-- Prueba local ejecutada: Bruno Lopez Martin no tenia registro en `mock_cae`; `POST /api/v1/transfers` con `connector_demo` creo el job `#23`, genero registro `Plataforma Mock CAE: accepted` y el segundo intento devolvio `409` por duplicado.
-- Prueba sobre plataforma ARM real preparada sin escritura externa: Bruno -> 6conecta/VELARTIA genero job `#24` en `blocked_mapping_review_required`; no se escribio fuera porque faltan mapeos/datos aprobados.
+- Prueba local ejecutada: Jose Manuel Alvarez Colmenero no tenia registro en `mock_cae`; `POST /api/v1/transfers` con `connector_demo` creo el job `#23`, genero registro `Plataforma Mock CAE: accepted` y el segundo intento devolvio `409` por duplicado.
+- Prueba sobre plataforma ARM real preparada sin escritura externa: Jose Manuel -> 6conecta/VELARTIA genero job `#24` en `blocked_mapping_review_required`; no se escribio fuera porque faltan mapeos/datos aprobados.
 - Prueba live autorizada 6conecta completada: trabajador local `#20 Prueba Hub Confirmada Lectura`, transfer `#33`, estado `confirmed_external`, `valid_external_write=true`, lectura posterior confirmada y registro local `WorkerPlatformRegistration #4` en plataforma/cuenta `#8`.
 - Control anti-duplicado externo validado: trabajador local `#18 Prueba Alta Real Confirmable`, transfer `#31`, estado `already_exists_external`; el Hub confirmo por lectura que ya existia en 6conecta y no repitio el alta.
 - Incidencia historica: transfer `#32` creo el trabajador externo pero se registro como `submit_not_observed`; despues se corrigio el helper para que, si no observa el submit pero la lectura posterior confirma un trabajador que no existia en la lectura previa, marque `confirmed_external`.
+- Actualizacion 2026-05-23: el flujo de `/assign-worker` crea una pasarela
+  `capture_write_screen` cuando un alta queda bloqueada por mapeo, y muestra el
+  enlace directo a `/rpa-gateway?request={id}`. En CTAIMA/GRUPO, pasarela `#175`
+  confirmo por lectura que Eleder Bilbao ya existe en el listado de trabajadores
+  externo; el Hub persistio `WorkerPlatformRegistration #13` con estado
+  `confirmed`, origen `rpa_readback_capture`, `platform_account_id=12` y
+  `external_worker_id=2506`. No se ejecuto escritura externa.
+- Causa raiz corregida para CTAIMA/GRUPO: la pasarela `#174` detectaba texto de
+  Eleder (`target_signals.eleder=true`) pero el helper no extraia filas
+  normalizadas de trabajadores, asi que no habia alta persistible. Ademas el
+  contexto guiado podia tomar un pendiente de otra cuenta CTAIMA (SOFIDEL) antes
+  que la cuenta seleccionada. Se anadio extraccion `observed_workers`, sincronizacion
+  a `WorkerPlatformRegistration` y una regresion para que los pendientes de una
+  cuenta no contaminen el contexto de otra.
 
 ## Pruebas verificadas en este checkpoint
 
@@ -177,9 +197,9 @@ Smoke local adicional:
 - `GET http://127.0.0.1:8001/api/v1/health`: `ok`.
 - `POST /api/v1/auth/login` con `demo/demo`: emite sesion para `demo@demo.invalid`.
 - `/login`: no muestra alta SaaS; redirige a `/select-company?next=/rpa-gateway` tras login.
-- `/select-company`: muestra solo `Empresa Demo Industrial, S.L.` y obliga a confirmar la empresa antes de entrar en `/rpa-gateway`.
+- `/select-company`: muestra solo `ARM Industrial Assemblies, S.L.` y obliga a confirmar la empresa antes de entrar en `/rpa-gateway`.
 - `python scripts\clean_local_arm_only.py`: deja 1 tenant, 1 empresa ARM, 7 trabajadores ARM, 39 intakes ARM, 0 planes SaaS, 0 cuentas mock, 0 runs de pasarela de prueba.
-- `GET /api/v1/dashboard/companies`: 1 empresa, `Empresa Demo Industrial, S.L.`.
+- `GET /api/v1/dashboard/companies`: 1 empresa, `ARM Industrial Assemblies, S.L.`.
 - `GET /api/v1/workers`: 7 trabajadores ARM.
 - `GET /api/v1/rpa-gateway/requests`: 0 ejecuciones de prueba tras la limpieza.
 - `GET /api/v1/platform-maps/standard-labels`: 52 etiquetas estandar.
@@ -215,12 +235,12 @@ Smoke local adicional:
 
 Se cargaron en la demo local documentos propios de ARM desde `requisitos/`:
 
-- Empresa ARM creada/encontrada como `Empresa Demo Industrial, S.L.` con `company_id=5`.
+- Empresa ARM creada/encontrada como `ARM Industrial Assemblies, S.L.` con `company_id=5`.
 - `Documentación empresa ARM.zip`: 7 propuestas documentales de empresa, todas en `pending_review`.
 - `replataformasycontraseas.zip`: 32 propuestas documentales de trabajadores, todas en `pending_review`.
-- El importador de propuestas de trabajadores detecto 7 fichas ARM y las creo sin DNI/NAF: Alicia Gomez, Bruno Lopez, Carlos Perez Ruiz, Daniel Pendiente revisar, Eduardo Pendiente revisar, Fernando Pendiente revisar e Hugo Pendiente revisar.
+- El importador de propuestas de trabajadores detecto 7 fichas ARM y las creo sin DNI/NAF: Eleder Bilbao, Jose Manuel Alvarez, Santiago Garcia Fernandez, Alejandro Pendiente revisar, Alfonso Pendiente revisar, David Pendiente revisar e Ivan Pendiente revisar.
 - Las fichas incompletas quedan marcadas con apellidos `Pendiente revisar` y notas CAE para revision humana antes de aprobar documentos.
-- CTAIMA/CLIENTE_A queda registrado como observacion humana ARM: falta `Entrega de EPIs` para Alicia Gomez. La prueba tecnica inicial de acceso del 2026-05-19 a la fila ARM 29 se detuvo antes de login por captcha/control. En la repeticion guiada posterior el operador logro entrar en CTAIMA; los relanzamientos quedaron bloqueados por control de sesion duplicada (`Ya existe una sesion activa`), que debe cerrar o dejar expirar el operador.
+- CTAIMA/SOFIDEL queda registrado como observacion humana ARM: falta `Entrega de EPIs` para Eleder Bilbao. La prueba tecnica inicial de acceso del 2026-05-19 a la fila ARM 29 se detuvo antes de login por captcha/control. En la repeticion guiada posterior el operador logro entrar en CTAIMA; los relanzamientos quedaron bloqueados por control de sesion duplicada (`Ya existe una sesion activa`), que debe cerrar o dejar expirar el operador.
 - El visor `Pendiente por plataforma y empresa` permite lanzar `Recargar datos` por combinacion plataforma+cuenta externa: crea una peticion en pasarela humana, abre `/rpa-gateway?request={id}` con el flujo guiado enfocado, registra autorizacion antes de lanzar el navegador visible, resuelve credenciales en memoria desde configuracion local/env, muestra estado del navegador mediante `browser-status`, recoge una captura tecnica redaccionada de solo lectura cuando la plataforma permite continuar y habilita `Sincronizar lectura con Hub`. La sincronizacion guarda evidencia `gateway.readonly_capture`, conserva `dry_run`/`manual_approval_required` y mantiene `changes_applied=[]`; la persistencia fila a fila queda bloqueada hasta aprobar mapeos CTAIMA -> Hub.
 - La seccion `Estrategia RPA por plataforma` usa `GET /api/v1/platform-review-schedules/rpa-variant-plan?priority_group=all` para cubrir todas las plataformas ARM actuales. Lee el snapshot local ARM y muestra variantes seguras de login/contexto/lectura/mapeo por plataforma. La politica limita cada ejecucion a un envio de credenciales por cuenta y detiene el flujo ante captcha, MFA, aviso legal, sesion duplicada, rate limit, empresa inesperada o pantalla no reconocida.
 - Detalle operativo en `docs/12_arm_document_intake.md`.
@@ -400,9 +420,9 @@ Se actualizo `scripts/assisted_platform_browser.py` a `readonly_capture_v8_persi
 - La siguiente apertura de la misma cuenta reutiliza esa sesion y no reenvia credenciales si la plataforma sigue autenticada.
 - Si hay captcha/MFA despues de enviar credenciales, el asistente queda esperando a que el operador lo resuelva y continua la captura cuando desaparece el control.
 - El estado de navegador expone solo `session_persistence` redaccionado: perfil reutilizado/no reutilizado y clave hash; no exporta cookies/tokens.
-- La pasarela calcula `target_context` por pendiente local o empresa externa y el helper selecciona automaticamente el contexto externo solo cuando hay una coincidencia unica visible, por ejemplo CLIENTE_A en CTAIMA. Si el selector es ambiguo o hay sesion duplicada, el estado queda en `human_context_required`.
-- `/api/v1/platform-authorizations/dashboard?priority_group=all` devuelve `account_contexts` y la UI muestra trazas como `CTAIMA / CTAIMA CAE / Empresa Demo Industrial, S.L. en CLIENTE_A,CLIENTE_I,CLIENTE_B,CLIENTE_J,CLIENTE_C` para que todo se revise por plataforma+empresa, no por plataforma agregada.
-- Lanzamiento vigente: CTAIMA/CLIENTE_A, run `#9`, perfil `26748c030677bd7a`.
+- La pasarela calcula `target_context` por pendiente local o empresa externa y el helper selecciona automaticamente el contexto externo solo cuando hay una coincidencia unica visible, por ejemplo SOFIDEL en CTAIMA. Si el selector es ambiguo o hay sesion duplicada, el estado queda en `human_context_required`.
+- `/api/v1/platform-authorizations/dashboard?priority_group=all` devuelve `account_contexts` y la UI muestra trazas como `CTAIMA / CTAIMA CAE / ARM Industrial Assemblies, S.L. en SOFIDEL,ITP,RENAULT,SEAT,MERCEDES` para que todo se revise por plataforma+empresa, no por plataforma agregada.
+- Lanzamiento vigente: CTAIMA/SOFIDEL, run `#9`, perfil `26748c030677bd7a`.
 
 ## Mapa de datos plataforma+empresa 2026-05-19
 
@@ -654,7 +674,7 @@ Se normalizo la demo local para trabajar solo con ARM y con las plataformas real
 
 - Script vigente de carga: `python scripts/load_arm_operational_state.py`.
 - `scripts/start-product.ps1` ejecuta esa carga antes de levantar frontend/backend.
-- Ficha empresa: `Empresa Demo Industrial, S.L.` (`B95868543`), tenant local ARM.
+- Ficha empresa: `ARM Industrial Assemblies, S.L.` (`B95868543`), tenant local ARM.
 - Trabajadores ARM activos: 7. Se eliminaron trabajadores de prueba generados por validaciones anteriores.
 - Propuestas documentales ARM: 39 en `pending_review`, enlazadas a 7 documentos de empresa y 32 documentos de trabajador.
 - Documentos internos preparados: 37 ficheros unicos por SHA-256, todos con `status_internal=pending_internal_review`; no se aprueban automaticamente.
@@ -760,7 +780,7 @@ Actualizacion alta trabajador CTAIMA 2026-05-20:
   crea un job de alta.
 - El bloqueo no aplica a `connector_manual_export`, porque generar un paquete
   manual no es ejecutar un alta externa.
-- Prueba local: Alicia Gomez en CTAIMA/CLIENTE_A devuelve
+- Prueba local: Eleder Bilbao en CTAIMA/SOFIDEL devuelve
   `No se puede dar de alta el trabajador porque ya existe en esta plataforma/cuenta.
   Estado actual: missing_required_document.`
 - Peticion relanzada para CTAIMA/GRUPO: job `#22`, estado
@@ -897,16 +917,16 @@ Actualizacion alta masiva 2026-05-21:
     `human_action_required`, para mapear pantalla editable antes de cualquier
     escritura real.
 
-Actualizacion prueba Alicia 2026-05-21:
+Actualizacion prueba Eleder 2026-05-21:
 
-- Trabajador probado: `#11 Alicia Gomez`.
-- Matriz previa: 0 cuentas `preview_ready`; Alicia no tiene en ARM datos
+- Trabajador probado: `#11 Eleder Bilbao`.
+- Matriz previa: 0 cuentas `preview_ready`; Eleder no tiene en ARM datos
   obligatorios para alta (`identifier_value`, nacionalidad, contrato, puesto y
   otros campos segun plataforma).
 - Prueba live autorizada con `POST /api/v1/exchange/workers/bulk-submit`:
   - 14 cuentas con conector evaluadas.
   - 0 escrituras externas ejecutadas.
-  - CTAIMA/CLIENTE_A (`account_proposal_id=14`) devolvio
+  - CTAIMA/SOFIDEL (`account_proposal_id=14`) devolvio
     `already_exists_external`: "No se puede dar de alta el trabajador porque ya
     existe en esta plataforma/cuenta. Estado actual: missing_required_document."
   - 6conecta quedo `blocked_submit` por `blocked_local_data_required`.
@@ -942,7 +962,7 @@ Actualizacion pruebas live y captura masiva 2026-05-21:
   sincronizadas: `#14`, `#25`, `#26`, `#28`, `#29`, `#30`, `#32`, `#33`,
   `#34`, `#37`, `#38`, `#39`, `#40`, `#45`, `#46`, `#47`, `#48`, `#49`,
   `#51`, `#53`, `#54`, `#55`, `#56`, `#57`.
-- Quedan con intervencion humana o login/contexto pendiente: `#27` CTAIMA/Cliente D,
+- Quedan con intervencion humana o login/contexto pendiente: `#27` CTAIMA/Honda,
   `#31` Vitaly CAE/SEDA, `#35` y `#36` e-coordina, `#41` y `#42` IEDOCE,
   `#43` y `#44` Integra ASEM.
 - `#50` Quironprevencion y `#52` Sarenet quedan bloqueadas por configuracion:
@@ -1048,6 +1068,403 @@ Actualizacion accesos/mapeo 2026-05-21 10:09:
   Resultado: 0 altas reales inmediatas; `6conecta` sigue bloqueada por datos
   locales ARM obligatorios incompletos (nacionalidad, contrato y puesto del
   trabajador candidato), el resto por mapeo/helper o ausencia de conector.
+
+Actualizacion paths de escritura 2026-05-21:
+
+- Se creo la tabla `platform_write_paths` con migracion
+  `0016_platform_write_paths`.
+- Exchange permite guardar paths por cuenta y operacion:
+  `GET /api/v1/exchange/write-paths`,
+  `POST /api/v1/exchange/{account_proposal_id}/write-paths` y
+  `POST /api/v1/exchange/write-paths/{path_id}/review`.
+- Los paths se crean en `pending_review`; para aprobarlos deben tener evidencia
+  o captura asociada, `field_paths` y `readback_paths`.
+- `build_platform_edit_methods`, previews y la matriz de escritura ya consumen
+  paths `approved` como evidencia de mapeo real, sin inventar rutas/selectores y
+  sin ejecutar escrituras externas.
+- La sincronizacion de una pasarela `capture_write_screen` ahora crea paths
+  pendientes por operacion cuando detecta campos editables reconocibles. Quedan
+  en `pending_review` y no se pueden aprobar hasta completar `readback_paths`.
+- La auditoria registra conteos y estados, no credenciales ni valores externos.
+
+Actualizacion iteracion escritura Joan 2026-05-21:
+
+- Se registro conector RPA de escritura protegida para las plataformas activas
+  que antes salian como `no_write_connector`: Dokyfy, eGestiona, Folyo, IEDOCE,
+  Integra ASEM, Koordinatu, Metacontratas, Quioo, SGS Gestiona, SmartOSH y UCAE.
+  Siguen bloqueando live con `blocked_live_adapter_missing` hasta tener helper
+  especifico, lectura previa y lectura posterior.
+- `scripts/assisted_platform_browser.py` paso a
+  `readonly_capture_v9_editable_discovery`: conserva sesion persistente, intenta
+  navegar solo por textos visibles observados hacia modulos de trabajadores/alta,
+  captura campos visibles fuera de formularios y no pulsa guardar/enviar/subir.
+- La sincronizacion de paths se endurecio para no crear rutas desde paginas de
+  login o formularios publicos de contacto. Cuatro rutas falsas detectadas en
+  IEDOCE/Metacontratas quedaron `rejected` con nota de auditoria.
+- Captura global relanzada:
+  `artifacts/platform-access-launches/platform_access_launch_20260521_114703.md`.
+  Resultado: 30 cuentas activas, 21 capturas sincronizadas, 9 sin captura
+  disponible, 0 escrituras externas.
+- Matriz Joan:
+  `artifacts/platform-write-readiness/current_platform_write_readiness_20260521_115826.md`.
+  Resultado: 30 contextos activos, 1 contexto listo/confirmado para alta
+  (`6conecta`), 29 bloqueados por falta de mapeo/captura editable aprobada y
+  helper live especifico. `no_write_connector` queda en 0.
+- Bulk-submit live de Joan sobre todas las cuentas: 6conecta devolvio
+  `already_exists_external` por registro existente; se crearon 29 nuevas
+  pasarelas `capture_write_screen` (`#58` a `#86`) para completar mapeo de las
+  plataformas bloqueadas antes de cualquier escritura real.
+- Segunda tanda de pasarelas `#58` a `#86` lanzada y sincronizada:
+  `artifacts/platform-access-launches/platform_access_launch_20260521_115712.md`.
+  Resultado: 21 capturas sincronizadas, 9 pendientes de contexto/login/humano,
+  0 paths editables aprobables. Todas las capturas sincronizadas devuelven
+  `no_editable_worker_page_captured`; no se inventaron rutas ni selectores.
+- Lectura posterior real 6conecta ejecutada en modo `readback-only`:
+  `artifacts/external-writes/seisconecta/readback-worker-27-20260521-114950.status.json`.
+  Resultado: `readback_confirmed`, `post_write_read_confirmed=true`,
+  `external_write_executed=false`.
+
+Actualizacion iteracion escritura Joan 2026-05-22:
+
+- Se repitio el intento de alta live de Joan Antoni Ramos Pujol (`worker_id=27`)
+  contra las 30 cuentas activas de plataformas ARM con `manual_approval_required`
+  y autorizacion live explicita.
+- `6conecta` devolvio `already_exists_external`: el backend bloqueo el alta
+  duplicada porque el trabajador ya esta confirmado en esa cuenta.
+- Las otras 29 cuentas crearon pasarelas de captura editable para no ejecutar
+  escrituras sin pantalla/mapeo aprobado.
+- Se reforzo `scripts/assisted_platform_browser.py` a
+  `readonly_capture_v10_deeper_editable_discovery`: explora mas pasos por
+  textos visibles observados, prioriza menus de accesos/equipo y evita tratar
+  formularios publicos de contacto/login como altas de trabajador.
+- Tercera tanda sincronizada:
+  `artifacts/platform-access-launches/platform_access_launch_20260522_192143.md`.
+  Resultado: 20 capturas sincronizadas, 10 sin captura disponible, 214 etiquetas
+  vistas, 22 propuestas nuevas y 0 escrituras externas.
+- La matriz final de alta:
+  `artifacts/platform-write-readiness/current_platform_write_readiness_20260522_192155.md`.
+  Resultado: 30 contextos activos, 1 contexto ya cubierto (`6conecta`,
+  trabajador existente confirmado), 29 bloqueados por falta de mapeo/captura
+  editable aprobada y helper live especifico. No hay plataformas activas con
+  `no_write_connector`.
+- No se ha subido documentacion en plataformas externas: las 30 filas de
+  `upload_worker_document` siguen en `blocked_mapping_review_required` porque
+  no existe path editable aprobado ni lectura posterior especifica por
+  plataforma.
+
+Actualizacion UX documentos ARM 2026-05-23:
+
+- `/arm` separa visualmente la zona HUB de la zona plataformas. La ficha de
+  empresa/trabajadores muestra documentos propios subidos al Hub con etiquetas
+  legibles (`En HUB`, `Revisar HUB`, `Caducado HUB`, `Falta en HUB`) en vez de
+  estados tecnicos como `pending_internal_review`.
+- La leyenda de estados queda en el repositorio documental y aclara que las
+  fechas o avisos leidos en plataformas externas se muestran aparte y no
+  sustituyen la caducidad declarada por ARM sin revision.
+- La subida de nuevas versiones ya no vive en un bloque separado: cada fila
+  documental tiene `Editar`, `Fichero nuevo`, `Guardar fechas` y `Subir
+  version`.
+- `Guardar fechas` crea una nueva version documental de metadatos con el mismo
+  fichero, manteniendo versionado inmutable y auditoria. `Subir version` sube
+  un fichero nuevo para ese tipo documental.
+- La misma tabla permite crear nuevos tipos documentales de empresa o trabajador
+  y deja creada la fila HUB para cargar el primer fichero.
+
+Actualizacion helpers de escritura 2026-05-23:
+
+- Se verifico el estado de helpers live: hay 18 conectores de escritura
+  registrados, 1 helper live operativo (`6conecta`) y 17 helpers especificos
+  scaffolded pendientes de captura/mapeo/readback.
+- `backend/app/connectors/rpa/common_write.py` expone `WriteHelperSpec` y cada
+  conector devuelve metadatos de helper en la evidencia del resultado.
+- `GET /api/v1/exchange/live-adapters` y `GET /api/v1/exchange/write-matrix`
+  muestran `helper`, `helper_status`, modulo/script y mantienen
+  `blocked_live_adapter_missing` cuando no hay helper live seguro.
+- No se han inventado rutas ni selectores comerciales: los helpers scaffolded
+  sirven para bloquear y guiar la captura editable necesaria antes de cualquier
+  escritura real.
+
+Actualizacion UX trabajadores ARM 2026-05-23:
+
+- `/arm` permite crear trabajadores ARM desde el listado. La ficha queda en el
+  Hub y no se envia a plataformas externas hasta usar la operativa de alta en
+  plataforma.
+- Los trabajadores no se eliminan desde el frontend. La accion visible es `Dar
+  de baja`, que cambia la ficha a inactiva y conserva historico, documentos y
+  auditoria. Tambien existe `Reactivar`.
+- El listado carga tambien fichas de baja (`include_deleted=true`) para que no
+  desaparezcan del control interno, y filtra por activos, baja o todos.
+- El buscador de trabajadores cubre nombre, DNI/NIE, puesto, centro, email y
+  telefono. El listado tambien filtra por documentos a revisar en HUB o
+  caducados.
+
+Actualizacion UX plataformas 2026-05-23:
+
+- `/platforms` incorpora filtros de diagnostico para entender que falla en cada
+  contexto plataforma + empresa + centro: avisos criticos/warnings, estado de
+  verificacion, superficies disponibles, escritura, conexion y operativa 100%.
+- La pantalla explica que `verificacion/superficies` significa lectura segura
+  del estado externo sobre pantallas, tablas o exports ya identificados, y que
+  `escritura` requiere mapeo aprobado, preview, auditoria y lectura posterior.
+- `/platforms` consulta tambien `GET /api/v1/exchange/live-adapters` y muestra
+  por fila el estado del helper: `helper live`, `helper scaffold` o `sin
+  helper`. El filtro de escritura permite ver solo helpers live operativos o
+  helpers pendientes.
+- Cada fila tiene `Analizar ahora`, que ejecuta el endpoint real
+  `/api/v1/platform-review-schedules/{id}/run-now` para esa cuenta/contexto en
+  modo seguro (`dry_run` y aprobacion manual segun backend).
+- Cada fila tiene `Preparar 100%`, que activa el schedule si procede, ejecuta
+  revision y, si falta captura/mapeo de escritura, crea una peticion real en
+  `/api/v1/rpa-gateway/requests` para pasarela humana. No se inventan rutas ni
+  selectores externos.
+- `platform_reconciliation` centraliza ahora el mapa operativo de plataformas:
+  cruza manifests, cuentas, schedules, superficies de lectura, observaciones
+  normalizadas, helpers live, operaciones core y `platform_write_paths`.
+- Nuevo endpoint:
+  `GET /api/v1/platform-observations/operational-map?priority_group=all`.
+  `/platforms` lo consume para mostrar "Mapeadas read/write", estado de lectura,
+  estado de escritura, paths aprobados/pendientes, peticiones externas y
+  blockers por fila.
+- Un contexto solo se considera read/write completo si tiene lectura preparada,
+  superficies detectadas, helper live, operaciones core listas y paths aprobados.
+
+Actualizacion UX notificaciones 2026-05-23:
+
+- `/notifications` permite filtrar por texto libre, plataforma, severidad,
+  origen, estado de evidencia, visibilidad y fecha minima.
+- El filtro `Ocultar anteriores a` oculta avisos/evidencias con fecha anterior
+  al corte indicado. Las evidencias usan `created_at/reviewed_at`; los avisos de
+  plataforma usan la fecha de ultima o proxima revision disponible.
+- Cada aviso o evidencia se puede `Anular` para ocultarlo de la vista operativa
+  sin cambiar datos externos ni documentos. La anulacion se guarda en
+  `localStorage` (`iprl_cae_dismissed_notifications`) y puede revertirse con el
+  filtro `Anuladas` y el boton `Restaurar`.
+- `/notifications` incorpora `Actualizacion masiva`: consume
+  `POST /api/v1/exchange/mass-update/plan` para mostrar acciones propuestas
+  desde el Hub y `POST /api/v1/exchange/mass-update/submit` para preparar jobs
+  dry-run y pasarelas de mapeo en lote.
+- El plan masivo une dos fuentes: trabajadores ARM que no constan en una cuenta
+  activa y documentos pedidos por plataforma que tienen version equivalente en
+  Hub.
+- La preparacion masiva no inventa rutas/selectores ni escribe fuera sin preview,
+  aprobacion, helper especifico y lectura posterior.
+
+Prueba escritura masiva ARM 2026-05-23:
+
+- Se corrigio `platform_write_probe_matrix` para que una fila `upsert_worker`
+  quede bloqueada como `already_registered` cuando el trabajador ya consta en
+  `WorkerPlatformRegistration` para esa plataforma/cuenta. Antes la matriz podia
+  mostrar erroneamente alta posible si el preview estaba listo pero ya habia
+  registro confirmado.
+- Matriz actual para Joan Antoni Ramos Pujol: 30 contextos activos, 0 altas
+  reales nuevas listas, 1 helper live especifico (`6conecta`) y 29 helpers
+  pendientes de captura/mapeo. En `6conecta`, Joan ya existe con estado
+  `confirmed`, por lo que el backend bloquea el duplicado.
+- Se ejecuto `POST /api/v1/exchange/mass-update/submit` con
+  `dry_run=false`, `manual_approval_required=true`,
+  `live_external_write_authorized=true`, `worker_ids=[27]` y
+  `create_capture_requests=true`. Resultado: 29 contextos bloqueados por preview
+  no listo, 0 escrituras externas, 29 pasarelas creadas (`#176` a `#204`) para
+  capturar/madurar mapeo editable por plataforma/cuenta.
+- Prueba directa contra `6conecta`/cuenta `#8` con Joan devolvio `409`: "No se
+  puede dar de alta el trabajador porque ya existe en esta plataforma/cuenta.
+  Estado actual: confirmed."
+
+Maduracion de mapeos de escritura 2026-05-23:
+
+- Nuevo servicio `platform_write_maturation`: revisa cuentas activas ARM,
+  crea/autoriza pasarelas `capture_write_screen` si faltan, sincroniza capturas
+  disponibles y aprueba automaticamente solo `platform_write_paths` pendientes
+  que ya contienen `field_paths`, `readback_paths` y evidencia validable. No
+  ejecuta escrituras externas.
+- Nuevo endpoint `POST /api/v1/exchange/write-readiness/mature` con auditoria
+  `exchange.write_readiness_mature`.
+- `/notifications` incorpora el boton `Madurar mapeos` dentro de
+  `Actualizacion masiva`. Por defecto sincroniza capturas y aprueba paths
+  validos, pero no lanza navegadores ni inventa rutas/selectores.
+- `scripts/assisted_platform_browser.py` sube a
+  `readonly_capture_v11_icon_action_editable_discovery`: el helper reconoce
+  acciones por `title`, `alt`, `value`, `id`, `name`, `class`, `onclick` e
+  inputs/imagenes de accion para detectar mejor botones como Nuevo/Alta/Crear
+  cuando la plataforma no usa botones semanticos.
+- Ejecucion real del madurador sobre ARM: 30 targets activos, 2 capturas
+  sincronizadas, 0 paths aprobados, 0 contextos read/write completos y 0
+  escrituras externas. El bloqueo correcto permanece porque las capturas
+  disponibles aun no han producido formulario editable de alta/documentos con
+  lectura posterior aprobable.
+- Capturas revisadas: CTAIMA/GRUPO (`run #176`) llega a listado de trabajadores
+  y lee filas normalizadas, incluyendo Eleder/Jose Manuel/Santiago/Ivan con IDs
+  externos; no encontro formulario editable de alta. 6conecta/VELARTIA
+  (`run #25`) llega a superficie conocida, pero la captura sigue sin path
+  editable aprobable para alta nueva en esa cuenta.
+- Estado operativo tras la maduracion: `write_ready=0`,
+  `fully_mapped_for_read_write=0`, `with_live_helper=1` y blockers principales
+  `blocked_live_adapter_missing`, `missing_core_operation_mapping`,
+  `needs_first_read`, `needs_read_surface_mapping` y `no_write_connector`.
+  Esto es intencionado mientras no haya captura real de formulario editable por
+  plataforma/cuenta.
+
+Intento Elena Gonzalez 2026-05-23:
+
+- Elena Gonzalez de San Roman Fernandez (`worker_id=28`) no tenia registros de
+  plataforma persistidos.
+- `POST /api/v1/exchange/mass-update/submit` con escritura live autorizada
+  preparo 30 acciones y creo pasarelas `#205` a `#234`. Resultado: 0 jobs de
+  escritura creados, 0 escrituras externas y 0 altas confirmadas porque ningun
+  preview estaba listo.
+- Para 6conecta/VELARTIA (`account_proposal_id=8`), el preview esta bloqueado
+  por datos ARM locales ausentes: `worker.nationality`, `worker.contract_type`
+  y `worker.work_position`. Los documentos importados de Elena confirman alta
+  Seguridad Social, DNI/NAF y fechas, pero no aportan de forma fiable contrato,
+  puesto ni nacionalidad para escritura externa.
+- Se autorizaron y lanzaron pasarelas por lotes; 10 capturas quedaron
+  sincronizadas y 20 autorizadas pendientes de formulario/captura util. Ninguna
+  produjo `platform_write_paths` aprobables.
+- `/assign-worker` muestra ahora, para el trabajador seleccionado, un panel
+  `Preparacion escritura real`: consume
+  `POST /api/v1/exchange/mass-update/plan`, resume listos/bloqueados/helper live,
+  muestra los datos ARM que faltan y enlaza con `/arm?worker={id}` para completar
+  la ficha antes de insistir en la escritura externa.
+- Actualizacion posterior: el operador confirmo los datos faltantes de Elena y
+  se actualizaron en la ficha ARM: `nationality=Española`,
+  `contract_type=Indefinido`, `work_position=Operator`.
+- Con esos datos, 6conecta/VELARTIA paso a `preview_ready` y
+  `POST /api/v1/exchange/mass-update/submit` con escritura live autorizada creo
+  `transfer #77`. Resultado: `confirmed_external`, `external_worker_id=5719839`,
+  `WorkerPlatformRegistration #16`, `external_write_executed=true` y
+  `post_write_read_confirmed=true`.
+- El mismo submit creo nuevas pasarelas `#235` a `#263` para las 29 plataformas
+  restantes. Tras lanzar el madurador para todas, se sincronizaron 21 capturas,
+  pero se aprobaron 0 paths. Aparecieron 3 paths `pending_review` en Folyo
+  relacionados con `document.file`, no aprobables automaticamente porque no
+  tienen `readback_paths`. El resto permanece bloqueado por mapeo/helper live.
+
+Analisis de fallos y skills 2026-05-23:
+
+- Se creo el skill local `iprl-cae-write-failure-triage` para diagnosticar
+  bloqueos de escritura con evidencia de `platform_review_runs`,
+  `platform_write_paths`, `transfer_jobs` y `worker_platform_registrations`.
+  Incluye el script `scripts/write_failure_diagnose.py`.
+- Se creo el skill local `iprl-cae-editable-capture-mapper` para convertir
+  capturas autorizadas en paths editables, rechazando login/contacto/listados
+  publicos y paths sin lectura posterior.
+- Se creo el skill local `iprl-cae-live-helper-builder` para implementar
+  helpers live especificos una vez existan mapeos aprobados y readback.
+- Informe generado para Elena:
+  `artifacts/platform-write-failure-analysis/write_failure_diagnosis_worker_28_20260523_195528.md`.
+- Causas raiz actuales: 6conecta ya tiene registro confirmado, Folyo tiene 3
+  paths pendientes solo con `document.file` y sin `readback_paths`, IEDOCE y
+  Metacontratas tienen paths rechazados por capturas de login/contacto publico,
+  y 9 pasarelas siguen autorizadas sin captura editable sincronizada.
+
+Mapeo batch Playwright 2026-05-24:
+
+- Se creo el skill local `iprl-cae-playwright-assisted-navigator` para abrir
+  navegador visible, permitir pasos humanos y sincronizar capturas redaccionadas
+  sin escritura externa.
+- `scripts/assisted_platform_browser.py` sube a
+  `readonly_capture_v13_server_dom_add_links`: CTAIMA sigue enlaces emitidos por
+  el DOM para llegar a `Trabajadores/Update.asp` sin calcular ni reconstruir
+  `cae=`.
+- `scripts/run_platform_mapping_batch.py` permite mapear una o varias cuentas
+  por Playwright visible y exporta JSON/CSV/XLSX/Markdown en
+  `artifacts/platform-mapping-batch/`.
+- Ejecucion completa una cuenta por plataforma:
+  `artifacts/platform-mapping-batch/platform_mapping_batch_20260524-162935_enriched.json`.
+  Resultado: 18 plataformas objetivo, 18 navegadores lanzados, 16 capturas
+  sincronizadas, 55 propuestas de mapeo, 9 paths de escritura encontrados y 0
+  escrituras externas.
+- Resumen Excel revisable:
+  `artifacts/platform-mapping-batch/platform_mapping_batch_all_platforms_latest.xlsx`.
+- CTAIMA/GRUPO (`account_proposal_id=12`) capturo listado de 4 trabajadores y
+  formulario real de alta `Trabajadores/Update.asp?cae=[redacted]`, con campos
+  como `TipoIPF`, `DNI`, `NSS`, `Nombre1`, `Apellido1`, `Apellido2`, `FechaN`,
+  `codigopostal`, `email`, `phone`, `Puesto`, `Activo`, `TipoTRAB` y roles por
+  cliente. Se sincronizaron 6 operaciones candidatas, pero sin aprobar escritura
+  live.
+- Prueba Elena 2026-05-24:
+  `artifacts/platform-write-probes/platform_write_probe_20260524-163739.json`
+  (misma matriz que la prueba previa `20260524-162958`).
+  Resultado: 32 contextos, 18 plataformas, `already_registered=1` en
+  6conecta, `blocked_mapping_review_required=31` en el resto, 0 escrituras
+  externas nuevas. La proteccion de duplicados evita volver a darla de alta en
+  6conecta.
+- Prueba con Microsoft Edge sobre CTAIMA:
+  `artifacts/platform-mapping-batch/platform_mapping_batch_20260524-163239.json`.
+  Edge redirigio a `Common/timeoutCierreSession.asp`, por bloqueo de sesion
+  activa/duplicada. Esto se considera paso humano/bloqueante de sesion, no una
+  ruta alternativa apta para automatizar.
+- Reejecucion solicitada 2026-05-24:
+  `artifacts/platform-mapping-batch/platform_mapping_batch_20260524-171842.json`
+  y `.xlsx`. Resultado: 18 plataformas lanzadas, 16 capturas sincronizadas, 3
+  paths actualizados, 0 escrituras externas durante el mapeo. En esta corrida
+  CTAIMA quedo en `SeleccionaEmpresa.asp`; el formulario de alta de CTAIMA sigue
+  respaldado por el artifact enriquecido anterior.
+- Submit live solicitado para Elena:
+  `artifacts/platform-write-submits/platform_write_submit_20260524-172023.json`.
+  Se envio el payload con `dry_run=false`,
+  `manual_approval_required=true` y `live_external_write_authorized=true`.
+  Resultado: 29 acciones planificadas, 29 bloqueadas por
+  `blocked_preview_not_ready`, 29 pasarelas de captura creadas, 0 transfer jobs
+  y 0 escrituras externas confirmadas. La cuenta 6conecta no entro en esas 29
+  acciones porque Elena ya constaba registrada y el control de duplicados evita
+  una nueva alta.
+- Comandos repetibles para operador:
+  `make platform-map` si hay `make`, o
+  `python scripts/run_platform_mapping_batch.py --one-per-platform --wait-seconds 45 --close-after`.
+  Para Elena en preview:
+  `python scripts/probe_platform_write_previews.py --worker-id 28 --operations upsert_worker --connector-dry-run`.
+  En Windows tambien quedan `scripts/platform-map.ps1`,
+  `scripts/platform-preview-elena.ps1` y `scripts/platform-submit-elena.ps1`.
+  Ver `docs/29_playwright_platform_mapping_ops.md`.
+
+Actualizacion CTAIMA live helper 2026-05-24:
+
+- CTAIMA/GRUPO (`account_proposal_id=12`) paso de `blocked_live_adapter_missing`
+  a helper live especifico `scripts/ctaima_live_upsert_worker.py`.
+- El helper usa navegador visible, perfil persistente, credenciales por `secret_ref`,
+  ruta `Trabajadores/Update.asp` emitida por el DOM, lectura previa, payload temporal
+  fuera de la linea de comandos, auditoria y lectura posterior. No calcula tokens
+  `cae=`, no salta captcha/MFA y no guarda credenciales.
+- Se ampliaron los datos enviados al conector live con NAF, email y telefono porque
+  CTAIMA los exige en el preview aprobado.
+- Para Elena (`worker_id=28`) la matriz quedo con CTAIMA cuenta 12 en
+  `preview_ready` y helper `specific_live_adapter_available`.
+- Preparacion sin submit validada:
+  `artifacts/external-writes/ctaima/prepare-worker-28-20260524-184416.status.json`.
+  El formulario queda relleno, con BRIDGESTONE y Gonvarri marcados desde el contexto
+  de cuenta, y con submit observado como `input[type=submit] name=Acept` hacia
+  `/CTAIMA_CAE/ADMIN_PROMOTORA/Trabajadores/Update.asp`.
+- Intento live final:
+  `artifacts/platform-write-submits/platform_write_submit_20260524-184558.json`,
+  transfer `#85`, estado `submit_not_observed`.
+  No se observo POST real de alta ni lectura posterior de Elena; por tanto
+  `external_write_executed=false`, `post_write_read_confirmed=false`,
+  `persist_external_status=false` y no se creo `WorkerPlatformRegistration` CTAIMA.
+- Lectura posterior aislada sin submit:
+  `artifacts/external-writes/ctaima/readback-worker-28-20260524-183455.status.json`;
+  resultado `readback_not_confirmed`.
+- Pendiente exacto CTAIMA: confirmar por captura/control humano por que el submit
+  `Acept` no emite POST desde Playwright pese a estar el formulario completo. La
+  siguiente iteracion debe capturar el evento real del boton o el requisito visual
+  que lo bloquea, sin inventar endpoints ni forzar `form.submit()`.
+
+Revision CTAIMA pendientes 2026-05-24:
+
+- Se anadio `scripts/ctaima_scan_pendientes.py` para revisar CTAIMA en modo
+  solo lectura, con sesion Playwright visible/persistente, seleccion de contexto
+  autorizada y rutas `cae=` redaccionadas. No ejecuta escrituras, no descarga
+  informes y bloquea navegaciones de cierre/importacion/subida/guardar.
+- Ejecucion sobre CTAIMA cuenta `#12`:
+  `artifacts/ctaima-pending-scan/ctaima_pending_scan_20260524-191235.json` y
+  `.md`.
+- Cobertura leida: dashboard, contratos, documentos de informacion,
+  trabajadores, documentos trabajador, documentos empresa, documentos a punto de
+  caducar, gestion accesos, concurrencia, vehiculos, equipos y destinatarios de
+  avisos.
+- Resultado: `30` paginas leidas, `0` paginas con texto visible `pendiente`,
+  `0` ocurrencias y `0` filas de tabla con `pendiente`. No se ejecuto escritura
+  externa (`external_write_executed=0`).
 
 ## Pendientes recomendados
 

@@ -114,7 +114,7 @@ La primera tabla operativa de `/authorizations` responde directamente:
 
 La matriz se calcula desde manifiestos ARM, cuentas propuestas, mapeos, schedules y ultimo resultado de lectura. No inventa endpoints ni declara escritura disponible si solo existe plan/dry-run.
 
-El visor `Pendiente por plataforma y empresa` incluye `Recargar datos` por fila. La accion crea una peticion en `/rpa-gateway?request={id}` con `manual_approval_required=true`, selecciona la cuenta ARM disponible para esa combinacion plataforma+empresa externa (CTAIMA prioriza CLIENTE_A cuando existe esa observacion), y enfoca directamente un flujo guiado. La pasarela muestra objetivo, cuenta, host autorizado, credenciales configuradas en servidor y estado del navegador visible. Al autorizar, el backend lanza un navegador guiado con credenciales resueltas en memoria; si aparece selector de empresa/cuenta, el helper selecciona automaticamente solo cuando el contexto objetivo aprobado produce una coincidencia unica visible. Si aparece captcha, MFA, sesion duplicada, selector ambiguo o aviso legal, la resolucion corresponde al operador delante de pantalla y el asistente espera para continuar. Si la plataforma permite entrar, el helper recoge estructura redaccionada de solo lectura y habilita `Sincronizar lectura con Hub`, que guarda evidencia `gateway.readonly_capture` sin escrituras externas. El Hub solo registra la decision y mantiene `changes_applied=[]`; la escritura o persistencia fila a fila queda bloqueada hasta tener mapeo aprobado.
+El visor `Pendiente por plataforma y empresa` incluye `Recargar datos` por fila. La accion crea una peticion en `/rpa-gateway?request={id}` con `manual_approval_required=true`, selecciona la cuenta ARM disponible para esa combinacion plataforma+empresa externa (CTAIMA prioriza SOFIDEL cuando existe esa observacion), y enfoca directamente un flujo guiado. La pasarela muestra objetivo, cuenta, host autorizado, credenciales configuradas en servidor y estado del navegador visible. Al autorizar, el backend lanza un navegador guiado con credenciales resueltas en memoria; si aparece selector de empresa/cuenta, el helper selecciona automaticamente solo cuando el contexto objetivo aprobado produce una coincidencia unica visible. Si aparece captcha, MFA, sesion duplicada, selector ambiguo o aviso legal, la resolucion corresponde al operador delante de pantalla y el asistente espera para continuar. Si la plataforma permite entrar, el helper recoge estructura redaccionada de solo lectura y habilita `Sincronizar lectura con Hub`, que guarda evidencia `gateway.readonly_capture` sin escrituras externas. El Hub solo registra la decision y mantiene `changes_applied=[]`; la escritura o persistencia fila a fila queda bloqueada hasta tener mapeo aprobado.
 
 ## Mapa de datos por plataforma y empresa
 
@@ -203,8 +203,8 @@ Cuando una plataforma no se puede leer de forma automatica por captcha/MFA/contr
 Caso vigente ARM:
 
 - Plataforma: CTAIMA / CTAIMA CAE.
-- Cuenta: CLIENTE_A, fila ARM 29.
-- Trabajador: Alicia Gomez.
+- Cuenta: SOFIDEL, fila ARM 29.
+- Trabajador: Eleder Bilbao.
 - Pendiente: falta `Entrega de EPIs`.
 - Estado local: `missing_required_document`, rojo.
 - Fuente: observacion manual ARM y flujo asistido CTAIMA. La prueba tecnica inicial del 2026-05-19 quedo en `stopped_control_detected_before_login`; en la repeticion guiada el operador logro entrar, pero los relanzamientos posteriores quedaron bloqueados por control de sesion duplicada de CTAIMA (`Ya existe una sesion activa`). El Hub puede sincronizar esa lectura como evidencia redaccionada, sin secretos, cookies, tokens, HAR, cuerpos HTTP ni capturas, pero no persiste filas de trabajador/documento hasta aprobar el mapeo CTAIMA -> Hub.

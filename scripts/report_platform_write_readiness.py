@@ -99,6 +99,7 @@ def _worker_score(worker: Worker) -> int:
 
 def _readiness_row(row: dict[str, object]) -> dict[str, object]:
     live_adapter_status = str(row.get("live_adapter_status") or "")
+    helper = row.get("helper") if isinstance(row.get("helper"), dict) else {}
     preview_ready = bool(row.get("preview_ready"))
     mapping_ready = bool(row.get("mapping_ready"))
     local_data_ready = bool(row.get("local_data_ready"))
@@ -109,8 +110,11 @@ def _readiness_row(row: dict[str, object]) -> dict[str, object]:
         and local_data_ready
         and account_ready
         and live_adapter_status == "specific_live_adapter_available"
+        and row.get("status") != "already_registered"
     )
     blockers = []
+    if row.get("status") == "already_registered":
+        blockers.append(str(row.get("next_action") or "el trabajador ya existe en esta plataforma/cuenta"))
     if not account_ready:
         blockers.append("cuenta en modo protegido/dry-run")
     if not local_data_ready:
@@ -133,7 +137,12 @@ def _readiness_row(row: dict[str, object]) -> dict[str, object]:
         "mapping_ready": mapping_ready,
         "local_data_ready": local_data_ready,
         "account_ready_for_live": account_ready,
+        "write_path_field_count": row.get("write_path_field_count"),
+        "approved_write_path_field_count": row.get("approved_write_path_field_count"),
         "live_adapter_status": live_adapter_status,
+        "helper_status": helper.get("status"),
+        "helper_module": helper.get("module_path"),
+        "helper_script": helper.get("script_path"),
         "next_action": row.get("next_action"),
     }
 
@@ -177,7 +186,7 @@ def _markdown(payload: dict[str, object]) -> str:
             f"{row.get('platform_name')} | "
             f"{row.get('external_company_name')} | "
             f"{'SI' if row.get('can_register_worker_now') else 'NO'} | "
-            f"{blocker_text} |"
+            f"{blocker_text}; helper={row.get('helper_status')} |"
         )
     lines.append("")
     return "\n".join(lines)

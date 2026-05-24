@@ -130,7 +130,7 @@ def _seed_operational_sample() -> None:
         arm_company = _ensure_company(
             session,
             tenant_id=tenant_id,
-            name="Empresa Demo Industrial, S.L.",
+            name="ARM Industrial Assemblies, S.L.",
             tax_id="B95868543",
             company_type="own",
         )
@@ -202,13 +202,13 @@ def _seed_operational_sample() -> None:
         }
         if not existing_arm_workers:
             for first_name, last_name in [
-                ("Alicia", "Gomez"),
-                ("Bruno", "Lopez"),
-                ("Carlos", "Perez Ruiz"),
-                ("Daniel", "Pendiente revisar"),
-                ("Eduardo", "Pendiente revisar"),
-                ("Fernando", "Pendiente revisar"),
-                ("Hugo", "Pendiente revisar"),
+                ("Eleder", "Bilbao Egusquiza"),
+                ("Jose Manuel", "Alvarez Colmenero"),
+                ("Santiago", "Garcia Fernandez"),
+                ("Alejandro", "Serrano Moya"),
+                ("Alfonso Luis", "Diaz Fernandez"),
+                ("David", "Martinez Augusto"),
+                ("Ivan", "Ruiz Monge"),
             ]:
                 worker = _ensure_arm_worker(
                     session,
@@ -522,18 +522,18 @@ def _seed_arm_ctaima_pending_observation(
     tenant_id: int,
     workers_by_name: dict[str, Worker],
 ) -> None:
-    worker = workers_by_name.get("Alicia Gomez")
+    worker = workers_by_name.get("Eleder Bilbao")
     if worker is None:
         return
     platform = session.scalar(select(ExternalPlatform).where(ExternalPlatform.platform_key == "ctaima_cae"))
     if platform is None:
         return
-    cliente_a_account = session.scalar(
+    sofidel_account = session.scalar(
         select(PlatformAccount)
         .where(
             PlatformAccount.tenant_id == tenant_id,
             PlatformAccount.external_platform_id == platform.id,
-            PlatformAccount.display_name.ilike("%CLIENTE_A%"),
+            PlatformAccount.display_name.ilike("%SOFIDEL%"),
         )
         .order_by(PlatformAccount.id)
     )
@@ -541,15 +541,15 @@ def _seed_arm_ctaima_pending_observation(
         session,
         tenant_id=tenant_id,
         worker_id=worker.id,
-        platform_account_id=cliente_a_account.id if cliente_a_account is not None else None,
+        platform_account_id=sofidel_account.id if sofidel_account is not None else None,
         external_platform_id=platform.id,
         platform_name="CTAIMA / CTAIMA CAE",
         external_worker_id=None,
         registration_status="missing_required_document",
-        assignment_scope="CLIENTE_A",
+        assignment_scope="SOFIDEL",
         source="manual_external_observation",
         notes=(
-            "CLIENTE_A: falta Entrega de EPIs en CTAIMA para Alicia Gomez. "
+            "SOFIDEL: falta Entrega de EPIs en CTAIMA para Eleder Bilbao. "
             "Observacion manual ARM; la lectura automatica queda bloqueada por captcha/control."
         ),
     )

@@ -847,6 +847,62 @@ class PlatformRpaMappingProposal(Base):
     )
 
 
+class PlatformWritePath(Base):
+    __tablename__ = "platform_write_paths"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "account_proposal_id",
+            "operation",
+            "path_kind",
+            "path_label",
+            name="uq_platform_write_path_account_operation_label",
+        ),
+        Index(
+            "ix_platform_write_paths_lookup",
+            "tenant_id",
+            "manifest_id",
+            "account_proposal_id",
+            "operation",
+            "review_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    manifest_id: Mapped[int] = mapped_column(ForeignKey("platform_rpa_manifests.id", ondelete="CASCADE"), index=True)
+    account_proposal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("platform_rpa_account_proposals.id", ondelete="SET NULL"),
+        index=True,
+    )
+    external_platform_id: Mapped[int | None] = mapped_column(ForeignKey("external_platforms.id", ondelete="SET NULL"), index=True)
+    platform_account_id: Mapped[int | None] = mapped_column(ForeignKey("platform_accounts.id", ondelete="SET NULL"), index=True)
+    capture_run_id: Mapped[int | None] = mapped_column(ForeignKey("platform_review_runs.id", ondelete="SET NULL"), index=True)
+    operation: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    entity_scope: Mapped[str | None] = mapped_column(String(60), index=True)
+    path_kind: Mapped[str] = mapped_column(String(80), default="editable_form", nullable=False, index=True)
+    path_label: Mapped[str] = mapped_column(String(180), nullable=False)
+    host: Mapped[str | None] = mapped_column(String(240), index=True)
+    entry_path: Mapped[str | None] = mapped_column(String(700))
+    field_paths_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    selector_map_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    readback_paths_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    source_evidence_ref: Mapped[str | None] = mapped_column(String(500))
+    review_status: Mapped[str] = mapped_column(String(80), default="pending_review", nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(80), default="captured_pending_review", nullable=False, index=True)
+    approval_notes: Mapped[str | None] = mapped_column(Text)
+    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class PlatformReviewSchedule(Base):
     __tablename__ = "platform_review_schedules"
     __table_args__ = (
@@ -949,6 +1005,88 @@ class ExternalDocumentStatus(Base):
     status: Mapped[str] = mapped_column(String(80), nullable=False)
     external_comment: Mapped[str | None] = mapped_column(Text)
     last_checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PlatformObservedEntity(Base):
+    __tablename__ = "platform_observed_entities"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "account_proposal_id",
+            "entity_type",
+            "external_entity_key",
+            name="uq_platform_observed_entity_key",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    manifest_id: Mapped[int] = mapped_column(ForeignKey("platform_rpa_manifests.id", ondelete="CASCADE"), index=True)
+    account_proposal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("platform_rpa_account_proposals.id", ondelete="SET NULL"),
+        index=True,
+    )
+    external_platform_id: Mapped[int | None] = mapped_column(ForeignKey("external_platforms.id", ondelete="SET NULL"), index=True)
+    platform_account_id: Mapped[int | None] = mapped_column(ForeignKey("platform_accounts.id", ondelete="SET NULL"), index=True)
+    source_run_id: Mapped[int | None] = mapped_column(ForeignKey("platform_review_runs.id", ondelete="SET NULL"), index=True)
+    entity_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    local_company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), index=True)
+    local_worker_id: Mapped[int | None] = mapped_column(ForeignKey("workers.id", ondelete="SET NULL"), index=True)
+    external_entity_key: Mapped[str] = mapped_column(String(240), nullable=False)
+    external_display_name: Mapped[str | None] = mapped_column(String(240))
+    external_status: Mapped[str] = mapped_column(String(80), default="observed", nullable=False, index=True)
+    status_color: Mapped[str] = mapped_column(String(20), default="orange", nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    source: Mapped[str] = mapped_column(String(80), default="readonly_capture", nullable=False)
+    source_page_label: Mapped[str | None] = mapped_column(String(180))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+
+class PlatformObservedDocumentRequest(Base):
+    __tablename__ = "platform_observed_document_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "account_proposal_id",
+            "external_requirement_key",
+            name="uq_platform_observed_document_request_key",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    manifest_id: Mapped[int] = mapped_column(ForeignKey("platform_rpa_manifests.id", ondelete="CASCADE"), index=True)
+    account_proposal_id: Mapped[int | None] = mapped_column(
+        ForeignKey("platform_rpa_account_proposals.id", ondelete="SET NULL"),
+        index=True,
+    )
+    external_platform_id: Mapped[int | None] = mapped_column(ForeignKey("external_platforms.id", ondelete="SET NULL"), index=True)
+    platform_account_id: Mapped[int | None] = mapped_column(ForeignKey("platform_accounts.id", ondelete="SET NULL"), index=True)
+    source_run_id: Mapped[int | None] = mapped_column(ForeignKey("platform_review_runs.id", ondelete="SET NULL"), index=True)
+    entity_scope: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    local_company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id", ondelete="SET NULL"), index=True)
+    local_worker_id: Mapped[int | None] = mapped_column(ForeignKey("workers.id", ondelete="SET NULL"), index=True)
+    document_type_id: Mapped[int | None] = mapped_column(ForeignKey("document_types.id", ondelete="SET NULL"), index=True)
+    matched_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id", ondelete="SET NULL"), index=True)
+    matched_document_version_id: Mapped[int | None] = mapped_column(ForeignKey("document_versions.id", ondelete="SET NULL"), index=True)
+    external_requirement_key: Mapped[str] = mapped_column(String(320), nullable=False)
+    external_requirement_label: Mapped[str] = mapped_column(String(240), nullable=False)
+    external_entity_label: Mapped[str | None] = mapped_column(String(240))
+    external_status: Mapped[str] = mapped_column(String(80), default="manual_required", nullable=False, index=True)
+    status_color: Mapped[str] = mapped_column(String(20), default="orange", nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), default="orange", nullable=False, index=True)
+    external_comment: Mapped[str | None] = mapped_column(Text)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    external_expires_at: Mapped[date | None] = mapped_column(Date, index=True)
+    confidence: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    source: Mapped[str] = mapped_column(String(80), default="readonly_capture", nullable=False)
+    source_page_label: Mapped[str | None] = mapped_column(String(180))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
 
 class AuditLog(Base):

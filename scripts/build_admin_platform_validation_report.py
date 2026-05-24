@@ -271,7 +271,7 @@ def render_html(report: dict[str, Any]) -> str:
       </tr>
     </thead>
     <tbody>
-      <tr><td>Alta</td><td>CTAIMA/CLIENTE_A</td><td>Confirmar si falta Entrega de EPIs para Alicia Gomez y si debe subirse/regularizarse.</td><td>OK / Corregir / Notas:</td></tr>
+      <tr><td>Alta</td><td>CTAIMA/SOFIDEL</td><td>Confirmar si falta Entrega de EPIs para Eleder Bilbao y si debe subirse/regularizarse.</td><td>OK / Corregir / Notas:</td></tr>
       <tr><td>Alta</td><td>Trabajadores sin plataforma</td><td>Confirmar si los 6 trabajadores sin registro deben estar dados de alta en CTAIMA, e-coordina, Nomio, Timenet, Validate, Vitaly CAE o 6conecta.</td><td>OK / Corregir / Notas:</td></tr>
       <tr><td>Media</td><td>Datos incompletos</td><td>Completar DNI/NIE, NAF, puesto, centro y aptitud laboral cuando proceda.</td><td>OK / Corregir / Notas:</td></tr>
       <tr><td>Media</td><td>Mapeos pendientes</td><td>Aprobar equivalencias de documentos y estados antes de persistir datos externos fila a fila.</td><td>OK / Corregir / Notas:</td></tr>

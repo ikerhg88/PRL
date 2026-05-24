@@ -16,6 +16,7 @@ app_name = "Configured Hub"
 environment = "staging"
 public_base_url = "https://api.example.test"
 frontend_base_url = "https://app.example.test"
+cors_origins_raw = "http://localhost:3000,http://127.0.0.1:3000"
 sso_state_ttl_minutes = 22
 database_url = "postgresql+psycopg://iprl_cae:staging-password@localhost:5432/iprl_cae"
 secret_key = "staging-secret-key-with-more-than-32-characters"
@@ -48,6 +49,7 @@ rpa_enabled = false
     assert settings.app_name == "Configured Hub"
     assert settings.environment == "staging"
     assert settings.public_base_url == "https://api.example.test"
+    assert settings.cors_origins == ["http://localhost:3000", "http://127.0.0.1:3000"]
     assert settings.sso_state_ttl_minutes == 22
     assert settings.sso.google.enabled is True
     assert settings.sso.google.allowed_domains == ["example.test"]

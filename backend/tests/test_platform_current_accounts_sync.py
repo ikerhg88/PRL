@@ -77,6 +77,8 @@ def test_sync_current_platform_accounts_activates_excel_rows_and_marks_rest_baja
         assert resolved.credentials is not None
         assert resolved.credentials.username == "B95868543"
         assert resolved.credentials.password == "secret"
+        assert resolved.credentials.metadata["source"] == "current_platform_excel"
+        assert resolved.credentials.metadata["source_row"] == 2
         assert inactive_account.status == INACTIVE_ACCOUNT_STATUS
         assert inactive_account.account_status == INACTIVE_ACCOUNT_STATUS
         active_platform_account = session.get(PlatformAccount, active_account.platform_account_id)

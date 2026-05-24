@@ -443,7 +443,7 @@ export default function RpaGatewayPage() {
               <textarea
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
-                placeholder="Ejemplo: revisar CTAIMA/CLIENTE_A y verificar pendiente de EPIs sin modificar datos."
+                placeholder="Ejemplo: revisar CTAIMA/SOFIDEL y verificar pendiente de EPIs sin modificar datos."
                 rows={3}
               />
             </label>

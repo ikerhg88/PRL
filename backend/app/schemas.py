@@ -1186,8 +1186,86 @@ class ExchangeBulkCaptureWriteScreensRequest(BaseModel):
     request_comment: str | None = Field(default=None, max_length=500)
 
 
+class ExchangeMassUpdatePlanRequest(BaseModel):
+    company_id: int | None = None
+    platform_slugs: list[str] = Field(default_factory=list)
+    account_proposal_ids: list[int] = Field(default_factory=list)
+    worker_ids: list[int] = Field(default_factory=list)
+    include_missing_workers: bool = True
+    include_document_requests: bool = True
+    only_active_contexts: bool = True
+    limit: int = Field(default=200, ge=1, le=1000)
+
+
+class ExchangeMassUpdateSubmitRequest(ExchangeMassUpdatePlanRequest):
+    action_ids: list[str] = Field(default_factory=list)
+    dry_run: bool = True
+    manual_approval_required: bool = True
+    live_external_write_authorized: bool = False
+    create_capture_requests: bool = True
+
+
+class ExchangeWriteMaturationRequest(BaseModel):
+    platform_slugs: list[str] = Field(default_factory=list)
+    account_proposal_ids: list[int] = Field(default_factory=list)
+    create_missing_capture_requests: bool = True
+    authorize_capture_requests: bool = True
+    launch_browsers: bool = False
+    sync_available_captures: bool = True
+    approve_valid_captured_paths: bool = True
+    max_browser_launches: int = Field(default=0, ge=0, le=30)
+
+
 class ExchangeCaptureWriteScreenRequest(BaseModel):
     request_comment: str | None = Field(default=None, max_length=500)
+
+
+class PlatformWritePathCreate(BaseModel):
+    operation: str
+    entity_scope: str | None = Field(default=None, max_length=60)
+    path_kind: str = Field(default="editable_form", max_length=80)
+    path_label: str = Field(max_length=180)
+    entry_path: str | None = Field(default=None, max_length=700)
+    field_paths: dict[str, Any] = Field(default_factory=dict)
+    selector_map: dict[str, Any] = Field(default_factory=dict)
+    readback_paths: dict[str, Any] = Field(default_factory=dict)
+    capture_run_id: int | None = None
+    source_evidence_ref: str | None = Field(default=None, max_length=500)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PlatformWritePathReviewUpdate(BaseModel):
+    review_status: Literal["pending_review", "approved", "rejected", "needs_capture_refresh"]
+    notes: str | None = Field(default=None, max_length=1000)
+
+
+class PlatformWritePathRead(BaseModel):
+    id: int
+    tenant_id: int
+    manifest_id: int
+    account_proposal_id: int | None
+    external_platform_id: int | None
+    platform_account_id: int | None
+    capture_run_id: int | None
+    operation: str
+    entity_scope: str | None
+    path_kind: str
+    path_label: str
+    host: str | None
+    entry_path: str | None
+    field_paths: dict[str, Any]
+    selector_map: dict[str, Any]
+    readback_paths: dict[str, Any]
+    source_evidence_ref: str | None
+    review_status: str
+    status: str
+    approval_notes: str | None
+    approved_by: int | None
+    approved_at: datetime | None
+    metadata: dict[str, Any]
+    created_by: int | None
+    created_at: datetime | None
+    updated_at: datetime | None
 
 
 class ExchangeWritePreviewRead(BaseModel):
@@ -1433,6 +1511,70 @@ class ExternalDocumentStatusRead(BaseModel):
     external_document_id: str | None
     external_requirement_id: str | None
     last_checked_at: datetime
+
+
+class PlatformObservedEntityRead(BaseModel):
+    id: int
+    tenant_id: int
+    manifest_id: int
+    account_proposal_id: int | None
+    external_platform_id: int | None
+    platform_account_id: int | None
+    source_run_id: int | None
+    entity_type: str
+    local_company_id: int | None
+    local_worker_id: int | None
+    external_entity_key: str
+    external_display_name: str | None
+    external_status: str
+    status_color: Literal["green", "orange", "red"]
+    confidence: int
+    source: str
+    source_page_label: str | None
+    observed_at: datetime
+    last_seen_at: datetime
+    metadata_json: dict[str, Any]
+
+
+class PlatformObservedDocumentRequestRead(BaseModel):
+    id: int
+    tenant_id: int
+    manifest_id: int
+    account_proposal_id: int | None
+    external_platform_id: int | None
+    platform_account_id: int | None
+    source_run_id: int | None
+    entity_scope: str
+    local_company_id: int | None
+    local_worker_id: int | None
+    document_type_id: int | None
+    matched_document_id: int | None
+    matched_document_version_id: int | None
+    external_requirement_key: str
+    external_requirement_label: str
+    external_entity_label: str | None
+    external_status: str
+    status_color: Literal["green", "orange", "red"]
+    severity: Literal["green", "orange", "red"]
+    external_comment: str | None
+    rejection_reason: str | None
+    requested_at: datetime | None
+    external_expires_at: date | None
+    confidence: int
+    source: str
+    source_page_label: str | None
+    observed_at: datetime
+    last_seen_at: datetime
+    metadata_json: dict[str, Any]
+
+
+class PlatformObservedStateSummaryRead(BaseModel):
+    entities: int
+    document_requests: int
+    actionable_document_requests: int
+    by_status: dict[str, int]
+    by_severity: dict[str, int]
+    last_seen_at: datetime | None
 
 
 class PlatformReviewScheduleRead(BaseModel):
@@ -1685,6 +1827,10 @@ class RpaGatewayCaptureSyncRead(BaseModel):
     status_counts: list[Any] = Field(default_factory=list)
     persisted_row_level: bool = False
     row_level_blocker: str | None = None
+    mapping_proposals_created: int = 0
+    mapping_proposals_seen: int = 0
+    write_paths_upserted: int = 0
+    write_path_operations_seen: list[str] = Field(default_factory=list)
 
 
 class SystemPlatformModuleRead(BaseModel):
@@ -1716,6 +1862,17 @@ class TransferRequest(BaseModel):
         "connector_rpa_timenet_write",
         "connector_rpa_validate_write",
         "connector_rpa_vitaly_cae_write",
+        "connector_rpa_dokyfy_write",
+        "connector_rpa_egestiona_write",
+        "connector_rpa_folyo_write",
+        "connector_rpa_iedoce_write",
+        "connector_rpa_integra_asem_write",
+        "connector_rpa_koordinatu_write",
+        "connector_rpa_metacontratas_write",
+        "connector_rpa_quioo_write",
+        "connector_rpa_sgs_gestiona_write",
+        "connector_rpa_smartosh_write",
+        "connector_rpa_ucae_write",
     ]
     operation: Literal[
         "upload_document",

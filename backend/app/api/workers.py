@@ -934,12 +934,12 @@ def _known_full_name_aliases(filenames: list[str]) -> dict[str, tuple[str, str]]
     aliases: dict[str, tuple[str, str]] = {}
     for filename in filenames:
         words = set(_filename_words(filename))
-        if {"bruno", "lopez"}.issubset(words):
-            aliases["manu"] = ("Bruno", "Lopez")
-        if {"carlos", "perez", "ruiz"}.issubset(words):
-            aliases["carlos"] = ("Carlos", "Perez Ruiz")
-        if {"alicia", "gomez"}.issubset(words):
-            aliases["alicia"] = ("Alicia", "Gomez")
+        if {"jose", "manuel", "alvarez"}.issubset(words):
+            aliases["manu"] = ("Jose Manuel", "Alvarez")
+        if {"santiago", "garcia", "fernandez"}.issubset(words):
+            aliases["santiago"] = ("Santiago", "Garcia Fernandez")
+        if {"eleder", "bilbao"}.issubset(words):
+            aliases["eleder"] = ("Eleder", "Bilbao")
     return aliases
 
 
@@ -948,23 +948,23 @@ def _infer_worker_from_filename(
     full_name_aliases: dict[str, tuple[str, str]],
 ) -> tuple[str, str, int, bool, str | None] | None:
     words = set(_filename_words(filename))
-    if {"bruno", "lopez"}.issubset(words):
-        return "Bruno", "Lopez", 96, False, None
-    if {"carlos", "perez", "ruiz"}.issubset(words):
-        return "Carlos", "Perez Ruiz", 96, False, None
-    if {"carlos", "perez"}.issubset(words):
-        return "Carlos", "Perez Ruiz", 84, False, "Apellido Ruiz inferido por otras evidencias del lote."
-    if {"alicia", "gomez"}.issubset(words):
-        return "Alicia", "Gomez", 96, False, None
+    if {"jose", "manuel", "alvarez"}.issubset(words):
+        return "Jose Manuel", "Alvarez", 96, False, None
+    if {"santiago", "garcia", "fernandez"}.issubset(words):
+        return "Santiago", "Garcia Fernandez", 96, False, None
+    if {"santiago", "garcia"}.issubset(words):
+        return "Santiago", "Garcia Fernandez", 84, False, "Apellido Fernandez inferido por otras evidencias del lote."
+    if {"eleder", "bilbao"}.issubset(words):
+        return "Eleder", "Bilbao", 96, False, None
     for alias, full_name in full_name_aliases.items():
         if alias in words:
             first_name, last_name = full_name
             return first_name, last_name, 82, False, f"Alias {alias} consolidado con nombre completo del lote."
     incomplete_candidates = {
-        "eduardo": ("Eduardo", "Pendiente revisar"),
-        "fernando": ("Fernando", "Pendiente revisar"),
-        "hugo": ("Hugo", "Pendiente revisar"),
-        "daniel": ("Daniel", "Pendiente revisar"),
+        "alfonso": ("Alfonso", "Pendiente revisar"),
+        "david": ("David", "Pendiente revisar"),
+        "ivan": ("Ivan", "Pendiente revisar"),
+        "alejandro": ("Alejandro", "Pendiente revisar"),
     }
     for token, (first_name, last_name) in incomplete_candidates.items():
         if token in words:
@@ -982,7 +982,7 @@ def _filename_words(filename: str) -> list[str]:
     basename = filename.replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0]
     normalized = _normalize_for_match(basename)
     normalized = (
-        normalized.replace("iva_n", "hugo")
+        normalized.replace("iva_n", "ivan")
         .replace("formacio_n", "formacion")
         .replace("prevencio_n", "prevencion")
     )

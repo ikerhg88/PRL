@@ -212,7 +212,7 @@ def main() -> None:
         local_user = session.scalar(select(User).where(User.email == LOCAL_USER, User.tenant_id == tenant_id))
         if local_user is not None:
             local_user.name = "ARM Operativa"
-        arm_company.name = "Empresa Demo Industrial, S.L."
+        arm_company.name = "ARM Industrial Assemblies, S.L."
         arm_company.status = "active"
         session.commit()
 

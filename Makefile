@@ -1,4 +1,4 @@
-.PHONY: dev backend-dev frontend-dev test backend-test frontend-test lint typecheck migrate seed e2e
+.PHONY: dev backend-dev frontend-dev test backend-test frontend-test lint typecheck migrate seed e2e platform-map platform-preview-elena
 
 dev:
 	$(MAKE) backend-dev
@@ -33,3 +33,9 @@ seed:
 
 e2e:
 	cd frontend && npm run e2e
+
+platform-map:
+	python scripts/run_platform_mapping_batch.py --one-per-platform --wait-seconds 45 --close-after
+
+platform-preview-elena:
+	python scripts/probe_platform_write_previews.py --worker-id 28 --operations upsert_worker --connector-dry-run

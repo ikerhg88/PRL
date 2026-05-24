@@ -58,18 +58,18 @@ Fecha: 2026-05-18.
 | 13 | FAURECIA – FORVIA | `faurecia.egestiona.com` | `login_not_confirmed_password_form_still_present` | 2 | `artifacts/platform-captures/arm-faurecia-forvia-20260518-091805/technical_capture.redacted.md` |
 | 14 | FLEXNGATE SABADELL / FLEXNAGATE PLÁSTICOS | `www.metacontratas.com` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-flexngate-sabadell-flexnagate-pl-sticos-20260518-091823/technical_capture.redacted.md` |
 | 15 | FOLYO | `seat.folyo.es` | `login_not_confirmed_password_form_still_present` | 2 | `artifacts/platform-captures/arm-folyo-20260518-091836/technical_capture.redacted.md` |
-| 16 | FREUDENBERGNW-CLIENTE_E | `v5.e-coordina.com` | `login_likely_success` | 2 | `artifacts/platform-captures/arm-freudenbergnw-cliente_e-20260518-091854/technical_capture.redacted.md` |
+| 16 | FREUDENBERGNW-MITSUBISHI | `v5.e-coordina.com` | `login_likely_success` | 2 | `artifacts/platform-captures/arm-freudenbergnw-mitsubishi-20260518-091854/technical_capture.redacted.md` |
 | 17 | GESTAMP | `v5.e-coordina.com` | `login_likely_success` | 2 | `artifacts/platform-captures/arm-gestamp-20260518-091924/technical_capture.redacted.md` |
 | 18 | GKN | `www.gestion.iedoce.com` | `login_not_confirmed_password_form_still_present` | 2 | `artifacts/platform-captures/arm-gkn-20260518-091954/technical_capture.redacted.md` |
-| 19 | GRUPO CLIENTE_H, CLIENTE_E, CLIENTE_F, CLIENTE_G | `www.ctaimacae.net` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-grupo-cliente_h-cliente_e-cliente_f-cliente_g-20260518-091959/technical_capture.redacted.md` |
-| 20 | CLIENTE_D | `www.ctaimacae.net` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-cliente_d-20260518-092007/technical_capture.redacted.md` |
+| 19 | GRUPO INVERBUR, MITSUBISHI, BRIDGESTONE, GONBARRI | `www.ctaimacae.net` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-grupo-inverbur-mitsubishi-bridgestone-gonbarri-20260518-091959/technical_capture.redacted.md` |
+| 20 | HONDA | `www.ctaimacae.net` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-honda-20260518-092007/technical_capture.redacted.md` |
 | 21 | KAUTENIK, TEKNIA AMPUERO | `quioo.es` | `login_form_not_found` | 1 | `artifacts/platform-captures/arm-kautenik-teknia-ampuero-20260518-092010/technical_capture.redacted.md` |
 | 22 | LONTANA GROUP | `integra.asemwebservices.es` | `login_form_not_found` | 1 | `artifacts/platform-captures/arm-lontana-group-20260518-092012/technical_capture.redacted.md` |
 | 23 | MAXAM Y P&G (general servei) | `www.dokyfy.net` | `initial_navigation_failed` | 1 | `artifacts/platform-captures/arm-maxam-y-p-g-general-servei-20260518-092014/technical_capture.redacted.md` |
 | 24 | Okin (Yaskawa) | `v5.e-coordina.com` | `login_not_confirmed_password_form_still_present` | 2 | `artifacts/platform-captures/arm-okin-yaskawa-20260518-092016/technical_capture.redacted.md` |
 | 26 | SACOPA, FLUIDA, CEDEX, POLTANK | `v5.e-coordina.com` | `login_not_confirmed_password_form_still_present` | 2 | `artifacts/platform-captures/arm-sacopa-fluida-cedex-poltank-20260518-092045/technical_capture.redacted.md` |
 | 28 | SEDA | `cae.vitaly.es` | `login_likely_success` | 2 | `artifacts/platform-captures/arm-seda-20260518-092104/technical_capture.redacted.md` |
-| 29 | CLIENTE_A,CLIENTE_I,CLIENTE_B,CLIENTE_J,CLIENTE_C | `www.ctaimacae.net` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-cliente_a-itp-cliente_b-seat-cliente_c-20260518-092116/technical_capture.redacted.md` |
+| 29 | SOFIDEL,ITP,RENAULT,SEAT,MERCEDES | `www.ctaimacae.net` | `stopped_control_detected_before_login` | 1 | `artifacts/platform-captures/arm-sofidel-itp-renault-seat-mercedes-20260518-092116/technical_capture.redacted.md` |
 | 30 | TENNECO | `v5.e-coordina.com` | `login_likely_success` | 2 | `artifacts/platform-captures/arm-tenneco-20260518-092120/technical_capture.redacted.md` |
 | 31 | TI AUTOMOTIVE | `tiautomotive.smartosh.com` | `login_form_not_found` | 1 | `artifacts/platform-captures/arm-ti-automotive-20260518-092150/technical_capture.redacted.md` |
 | 32 | TIMENET | `timenet.gpisoftware.com` | `login_likely_success` | 4 | `artifacts/platform-captures/arm-timenet-20260518-092153/technical_capture.redacted.md` |
@@ -77,7 +77,7 @@ Fecha: 2026-05-18.
 | 34 | NOMIO | `app.nomio.io` | `login_likely_success` | 6 | `artifacts/platform-captures/arm-nomio-20260518-092227/technical_capture.redacted.md` |
 | 35 | GESTAMP ABRERA | `gestamp-abrera.smartosh.com` | `login_form_not_found` | 1 | `artifacts/platform-captures/arm-gestamp-abrera-20260518-092237/technical_capture.redacted.md` |
 
-Nota 2026-05-19: se repitio la captura tecnica de la fila ARM 29 para CTAIMA/CLIENTE_A. El resultado volvio a ser `stopped_control_detected_before_login` con captcha detectado antes de localizar campos de usuario/password. Artefacto: `artifacts/platform-captures/cliente_a-itp-cliente_b-seat-cliente_c-20260519-134307/technical_capture.redacted.md`.
+Nota 2026-05-19: se repitio la captura tecnica de la fila ARM 29 para CTAIMA/SOFIDEL. El resultado volvio a ser `stopped_control_detected_before_login` con captcha detectado antes de localizar campos de usuario/password. Artefacto: `artifacts/platform-captures/sofidel-itp-renault-seat-mercedes-20260519-134307/technical_capture.redacted.md`.
 
 ## APIs oficiales/localizadas
 

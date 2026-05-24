@@ -32,7 +32,7 @@ from app.services.ocr_intake import analyze_document_intake
 from app.services.worker_identity import normalize_worker_identifier, worker_identifier_hash
 
 ARM_TAX_ID = "B95868543"
-ARM_COMPANY_NAME = "Empresa Demo Industrial, S.L."
+ARM_COMPANY_NAME = "ARM Industrial Assemblies, S.L."
 
 SUPPORTED_ARCHIVE_EXTENSIONS = {
     ".pdf",
@@ -144,16 +144,18 @@ DOCUMENT_TYPE_SPECS: tuple[tuple[str, str, str, bool], ...] = (
 )
 
 KNOWN_WORKER_FOLDERS: dict[str, tuple[str, str, str | None]] = {
-    "lopez martin bruno": ("Bruno", "Lopez Martin", None),
-    "gomez moreno alicia": ("Alicia", "Gomez Moreno", None),
-    "ramos nunez eduardo": ("Eduardo", "Ramos Nunez", "000T"),
-    "perez ruiz carlos": ("Carlos", "Perez Ruiz", None),
-    "santos mario": ("Mario", "Santos Vega", None),
-    "navarro gil laura": ("Laura", "Navarro Gil", None),
-    "ortega fernando": ("Fernando", "Ortega Cano", None),
-    "romero soler nicolas": ("Nicolas", "Romero Soler", None),
-    "molina vera hugo": ("Hugo", "Molina Vera", "111X"),
-    "torres daniel": ("Daniel", "Torres Vidal", None),
+    "alvarez colmenero jose manuel": ("Jose Manuel", "Alvarez Colmenero", None),
+    "bilbao egusquiza eleder": ("Eleder", "Bilbao Egusquiza", None),
+    "diaz fernandez alfonso": ("Alfonso Luis", "Diaz Fernandez", "387L"),
+    "garcia fernandez santiago": ("Santiago", "Garcia Fernandez", None),
+    "garcia pedro javier": ("Pedro Javier", "Garcia", None),
+    "glz de s roman fdz elena": ("Elena", "Gonzalez de San Roman Fernandez", None),
+    "martinez augusto david": ("David", "Martinez Augusto", None),
+    "martinez david": ("David", "Martinez Augusto", None),
+    "ramos pujol joan antoni": ("Joan Antoni", "Ramos Pujol", None),
+    "ruiz monge ivan": ("Ivan", "Ruiz Monge", "109X"),
+    "serrano moya alejandro": ("Alejandro", "Serrano Moya", None),
+    "serrano alejandro": ("Alejandro", "Serrano Moya", None),
 }
 
 
@@ -973,7 +975,7 @@ def _looks_like_non_archive_worker(worker: Worker) -> bool:
         or name.startswith("empleado prueba")
         or name.startswith("e2etestapi")
         or "pendiente revisar" in name
-        or name == "bruno lopez"
+        or name == "jose manuel lopez"
         or "live seisconecta" in name
         or "alta plataforma" in name
     )
@@ -1020,7 +1022,7 @@ def _worker_document_type_code(key: str) -> str:
         return "CAE.WORKER.METAL_TRAINING"
     if "confidencialidad" in key or "confidecialidad" in key:
         return "ARM.WORKER.CLIENT_CONFIDENTIALITY"
-    if any(token in key for token in ("cliente_f", "cliente_c", "sprilur", "sp ri", "cliente")):
+    if any(token in key for token in ("bridgestone", "mercedes", "sprilur", "sp ri", "cliente")):
         return "ARM.WORKER.CLIENT_INDUCTION"
     if "herramienta" in key or "maquina" in key:
         return "ARM.WORKER.TOOL_USE_AUTHORIZATION"

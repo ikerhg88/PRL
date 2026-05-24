@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, quote, urlparse, urlunparse
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
@@ -21,9 +23,57 @@ if str(BACKEND) not in sys.path:
 
 from app.services.platform_credentials import resolve_platform_credentials  # noqa: E402
 
-HELPER_VERSION = "readonly_capture_v8_persistent_session"
+HELPER_VERSION = "readonly_capture_v13_server_dom_add_links"
 MAX_USERNAME_STEP_SUBMISSIONS = 1
 MAX_PASSWORD_SUBMISSIONS = 1
+WORKER_MODULE_LABELS = [
+    "Trabajadores",
+    "Empleados",
+    "Personal",
+    "Gestion Usuarios",
+    "Gestión Usuarios",
+    "Usuarios",
+    "Mi personal",
+    "Plantilla",
+]
+WORKER_SECTION_LABELS = [
+    *WORKER_MODULE_LABELS,
+    "Equipo",
+    "Accesos",
+    "Gestion",
+    "GestiÃ³n",
+    "Coordinacion",
+    "CoordinaciÃ³n",
+    "Contratos",
+    "Contratas",
+    "Subcontratas",
+    "Empresas",
+    "Mi empresa",
+    "Recursos humanos",
+    "Documentacion",
+    "DocumentaciÃ³n",
+    "CAE",
+]
+WORKER_ADD_LABELS = [
+    "Añadir trabajador",
+    "Anadir trabajador",
+    "Agregar trabajador",
+    "Nuevo trabajador",
+    "Alta trabajador",
+    "Alta de trabajador",
+    "Crear trabajador",
+    "Añadir empleado",
+    "Anadir empleado",
+    "Agregar empleado",
+    "Nuevo empleado",
+    "Alta empleado",
+    "Nuevo",
+    "Alta",
+    "Insertar",
+    "Crear",
+    "AÃ±adir",
+    "Anadir",
+]
 LOGIN_VARIANT_POLICY = {
     "parallel_attempts": False,
     "max_credential_submissions_per_account": MAX_PASSWORD_SUBMISSIONS,
@@ -58,6 +108,11 @@ def main() -> int:
     parser.add_argument("--status-file", type=Path, required=True)
     parser.add_argument("--session-profile-dir", type=Path, default=None)
     parser.add_argument("--target-context", default="")
+    parser.add_argument(
+        "--browser-channel",
+        choices=("auto", "chromium", "chrome", "msedge"),
+        default=os.environ.get("IPRL_CAE_BROWSER_CHANNEL", "auto"),
+    )
     parser.add_argument("--timeout-minutes", type=int, default=20)
     args = parser.parse_args()
 
@@ -100,6 +155,7 @@ def main() -> int:
             args.platform_label,
             args.entry_url,
             session_profile,
+            browser_channel=args.browser_channel,
         )
         if browser_session is None:
             return 3
@@ -167,6 +223,7 @@ def main() -> int:
                         if username_submitted
                         else "password_only_visible"
                     )
+                    login_extra_fields = fill_login_auxiliary_fields(page, credentials, args.entry_url)
                     if username_field is not None:
                         fill_field(username_field, credentials.username)
                     fill_field(password_field, credentials.password)
@@ -182,6 +239,7 @@ def main() -> int:
                         extra={
                             "selected_login_variant": selected_login_variant,
                             "login_variant_policy": LOGIN_VARIANT_POLICY,
+                            "login_extra_fields_applied": login_extra_fields,
                         },
                         session=browser_session,
                     )
@@ -322,10 +380,13 @@ def launch_visible_session(
     platform_label: str,
     entry_url: str,
     session_profile: dict[str, Any] | None,
+    *,
+    browser_channel: str = "auto",
 ) -> BrowserSession | None:
+    launch_variants = browser_launch_variants(browser_channel)
     if session_profile is not None:
         profile_dir = session_profile["path"]
-        for launch_kwargs in [{}, {"channel": "chrome"}, {"channel": "msedge"}]:
+        for launch_kwargs in launch_variants:
             try:
                 context = playwright.chromium.launch_persistent_context(
                     str(profile_dir),
@@ -340,7 +401,7 @@ def launch_visible_session(
                     state="browser_launched",
                     platform_label=platform_label,
                     entry_url=entry_url,
-                    message="Navegador visible lanzado con perfil persistente de sesion local.",
+                    message=f"Navegador visible lanzado con perfil persistente de sesion local ({browser_channel}).",
                     session={
                         "persistent": True,
                         "profile_key": session_profile["profile_key"],
@@ -370,7 +431,8 @@ def launch_visible_session(
         )
 
     try:
-        browser = playwright.chromium.launch(headless=False)
+        launch_kwargs = launch_variants[0] if launch_variants else {}
+        browser = playwright.chromium.launch(headless=False, **launch_kwargs)
         context = browser.new_context(viewport={"width": 1366, "height": 900}, locale="es-ES", accept_downloads=False)
         return BrowserSession(context=context, browser=browser, persistent=False, profile_reused=False, profile_key=None)
     except Exception:
@@ -382,7 +444,10 @@ def launch_visible_session(
             message="Chromium de Playwright no esta instalado; probando Chrome instalado en el equipo.",
             session=None,
         )
-    for channel, label in [("chrome", "Chrome"), ("msedge", "Microsoft Edge")]:
+    fallback_channels = [("chrome", "Chrome"), ("msedge", "Microsoft Edge")]
+    if browser_channel in {"chrome", "msedge"}:
+        fallback_channels = [(browser_channel, "Chrome" if browser_channel == "chrome" else "Microsoft Edge")]
+    for channel, label in fallback_channels:
         try:
             browser = playwright.chromium.launch(channel=channel, headless=False)
             context = browser.new_context(viewport={"width": 1366, "height": 900}, locale="es-ES", accept_downloads=False)
@@ -409,6 +474,14 @@ def launch_visible_session(
         session=None,
     )
     return None
+
+
+def browser_launch_variants(browser_channel: str) -> list[dict[str, Any]]:
+    if browser_channel == "chromium":
+        return [{}]
+    if browser_channel in {"chrome", "msedge"}:
+        return [{"channel": browser_channel}]
+    return [{}, {"channel": "chrome"}, {"channel": "msedge"}]
 
 
 def perform_readonly_capture(
@@ -477,6 +550,10 @@ def perform_readonly_capture(
         wait_after_readonly_navigation(page)
         pages.append(readonly_page_snapshot("coordinacion", page))
 
+    editable_discovery = discover_editable_worker_pages(page)
+    navigation_actions.extend(editable_discovery["actions"])
+    pages.extend(editable_discovery["pages"])
+
     summary = readonly_capture_summary(pages, navigation_actions)
     state = "readonly_capture_collected"
     message = "Lectura de solo lectura recogida; se puede sincronizar con el Hub."
@@ -506,6 +583,8 @@ def readonly_page_snapshot(label: str, page: Any) -> dict[str, Any]:
         "buttons": [redact(item) for item in shape.get("buttons", [])],
         "links": [redact(item) for item in shape.get("links", [])],
         "forms": shape.get("forms", []),
+        "fields": shape.get("fields", []),
+        "worker_rows": shape.get("worker_rows", []),
         "table_headers": shape.get("table_headers", []),
         "grid_headers": [redact(item) for item in shape.get("grid_headers", [])],
         "status_counts": shape.get("status_counts", []),
@@ -515,7 +594,8 @@ def readonly_page_snapshot(label: str, page: Any) -> dict[str, Any]:
 
 def readonly_capture_summary(pages: list[dict[str, Any]], navigation_actions: list[dict[str, Any]]) -> dict[str, Any]:
     total_status_counts: dict[str, int] = {}
-    target_signals = {"cliente_a": False, "alicia": False, "epis": False}
+    target_signals = {"sofidel": False, "eleder": False, "epis": False}
+    observed_workers: dict[str, dict[str, Any]] = {}
     session_conflict = False
     for page in pages:
         page_title = str(page.get("title") or "").lower()
@@ -535,11 +615,29 @@ def readonly_capture_summary(pages: list[dict[str, Any]], navigation_actions: li
         signals = page.get("target_signals", {})
         for key in target_signals:
             target_signals[key] = target_signals[key] or bool(signals.get(key))
+        for worker_row in page.get("worker_rows") or []:
+            if not isinstance(worker_row, dict):
+                continue
+            display_name = str(worker_row.get("display_name") or "").strip()
+            identifier_last4 = str(worker_row.get("identifier_last4") or "").strip()
+            external_worker_id = str(worker_row.get("external_worker_id") or "").strip()
+            if not display_name and not identifier_last4:
+                continue
+            key = external_worker_id or f"{identifier_last4}:{display_name}".lower()
+            observed_workers[key] = {
+                "display_name": redact(display_name),
+                "identifier_last4": identifier_last4[-4:] if identifier_last4 else None,
+                "work_position": redact(str(worker_row.get("work_position") or "")) or None,
+                "active": worker_row.get("active"),
+                "external_worker_id": external_worker_id or None,
+                "source_page_label": page.get("label"),
+            }
     return {
         "mode": "assisted_browser_readonly_capture",
         "pages_captured": len(pages),
         "pages": pages,
         "navigation_actions": navigation_actions,
+        "observed_workers": list(observed_workers.values()),
         "status_counts": sorted(total_status_counts.items()),
         "target_signals": target_signals,
         "session_conflict": session_conflict,
@@ -565,8 +663,42 @@ def collect_readonly_shape(page: Any) -> dict[str, Any]:
               const texts = (selector, max = 40) => Array.from(document.querySelectorAll(selector))
                 .filter(visible)
                 .slice(0, max)
-                .map((el) => clean(el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || ''))
+                .map((el) => clean(el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('alt') || el.getAttribute('value') || ''))
                 .filter(Boolean);
+              const actionTexts = (selector, max = 80) => Array.from(document.querySelectorAll(selector))
+                .filter(visible)
+                .slice(0, max)
+                .map((el) => clean(
+                  el.innerText ||
+                  el.textContent ||
+                  el.getAttribute('aria-label') ||
+                  el.getAttribute('title') ||
+                  el.getAttribute('alt') ||
+                  el.getAttribute('value') ||
+                  el.getAttribute('id') ||
+                  el.getAttribute('name') ||
+                  el.getAttribute('class') ||
+                  ''
+                ))
+                .filter(Boolean);
+              const labelFor = (input) => {
+                const labels = [];
+                if (input.id) {
+                  try {
+                    const escapedId = window.CSS && CSS.escape ? CSS.escape(input.id) : input.id.replace(/"/g, '\\"');
+                    const byFor = document.querySelector(`label[for="${escapedId}"]`);
+                    if (byFor) labels.push(byFor.innerText || byFor.textContent || '');
+                  } catch (e) {}
+                }
+                const parentLabel = input.closest('label');
+                if (parentLabel) labels.push(parentLabel.innerText || parentLabel.textContent || '');
+                const container = input.closest('.form-group, .field, .x-form-item, .mb-3, .row, p, td, div');
+                if (container) {
+                  const label = container.querySelector('label, .control-label, .x-form-item-label, .field-label');
+                  if (label) labels.push(label.innerText || label.textContent || '');
+                }
+                return clean(labels.find(Boolean) || '');
+              };
               const inputShape = (input) => ({
                 tag: input.tagName.toLowerCase(),
                 type: input.getAttribute('type') || '',
@@ -574,6 +706,8 @@ def collect_readonly_shape(page: Any) -> dict[str, Any]:
                 id: input.getAttribute('id') || '',
                 placeholder: clean(input.getAttribute('placeholder') || ''),
                 aria_label: clean(input.getAttribute('aria-label') || ''),
+                fieldLabel: labelFor(input),
+                required: input.required || input.getAttribute('aria-required') === 'true',
               });
               const forms = Array.from(document.querySelectorAll('form')).filter(visible).slice(0, 8).map((form) => ({
                 method: (form.getAttribute('method') || 'get').toLowerCase(),
@@ -586,6 +720,39 @@ def collect_readonly_shape(page: Any) -> dict[str, Any]:
               const tableHeaders = Array.from(document.querySelectorAll('table')).filter(visible).slice(0, 12).map((table) =>
                 Array.from(table.querySelectorAll('thead th, tr:first-child th')).slice(0, 30).map((h) => clean(h.innerText || h.textContent || '')).filter(Boolean)
               ).filter((headers) => headers.length);
+              const workerRows = [];
+              for (const row of Array.from(document.querySelectorAll('tr')).filter(visible).slice(0, 300)) {
+                const cells = Array.from(row.querySelectorAll('td, th')).map((cell) => clean(cell.innerText || cell.textContent || ''));
+                const rowText = cells.join(' ');
+                const identifier = (rowText.match(/\\b(?:\\d{8}[A-Z]|[XYZ]\\d{7}[A-Z])\\b/i) || [])[0] || '';
+                if (!identifier || cells.length < 3) continue;
+                const nameCell = cells.find((cell) => /,/.test(cell) && /[A-ZÁÉÍÓÚÑ]/i.test(cell)) || '';
+                if (!nameCell) continue;
+                const actionText = Array.from(row.querySelectorAll('a[href], [onclick], i, button, input'))
+                  .map((el) => [
+                    el.getAttribute('href') || '',
+                    el.getAttribute('onclick') || '',
+                    el.getAttribute('title') || '',
+                    el.getAttribute('id') || '',
+                    el.getAttribute('class') || ''
+                  ].join(' '))
+                  .join(' ');
+                const externalId = (actionText.match(/desactivaTrabajador\\((\\d+)/i) || [])[1] || '';
+                const activeText = cells.some((cell) => /^s[ií]$/i.test(cell));
+                const nameIndex = cells.indexOf(nameCell);
+                workerRows.push({
+                  display_name: clean(nameCell).slice(0, 180),
+                  identifier_last4: identifier.replace(/\\s+/g, '').slice(-4).toUpperCase(),
+                  work_position: nameIndex >= 0 ? clean(cells[nameIndex + 1] || '').slice(0, 160) : '',
+                  active: activeText,
+                  external_worker_id: externalId,
+                });
+              }
+              const fields = Array.from(document.querySelectorAll('input, select, textarea'))
+                .filter(visible)
+                .filter((input) => !['hidden', 'password', 'submit', 'button', 'reset'].includes((input.getAttribute('type') || '').toLowerCase()))
+                .slice(0, 80)
+                .map(inputShape);
               const gridHeaders = texts('.x-grid3-hd-inner, .x-column-header-text, [role=columnheader]', 80);
               const fullText = (document.body ? document.body.innerText : '').toLowerCase();
               const statusTerms = [
@@ -604,15 +771,17 @@ def collect_readonly_shape(page: Any) -> dict[str, Any]:
               return {
                 headings: texts('h1, h2, h3, .titulo, .title', 40),
                 cards: texts('.card, .programa, .x-panel, [class*=card], [class*=Programa]', 40),
-                buttons: texts('button, input[type=button], input[type=submit], .x-btn, [role=button]', 80),
+                buttons: actionTexts('button, input[type=button], input[type=submit], input[type=image], img[title], img[alt], .x-btn, [role=button], [onclick][title], [onclick][aria-label]', 100),
                 links: texts('a[href]', 80),
                 forms,
+                fields,
+                worker_rows: workerRows,
                 table_headers: tableHeaders,
                 grid_headers: gridHeaders,
                 status_counts: statusCounts,
                 target_signals: {
-                  cliente_a: fullText.includes('cliente_a'),
-                  alicia: fullText.includes('alicia'),
+                  sofidel: fullText.includes('sofidel'),
+                  eleder: fullText.includes('eleder'),
                   epis: fullText.includes('epis') || fullText.includes('epi')
                 },
                 post_login_likely: fullText.includes('coordinación') || fullText.includes('coordinacion') || fullText.includes('gestión usuarios')
@@ -626,6 +795,7 @@ def collect_readonly_shape(page: Any) -> dict[str, Any]:
             "buttons": [],
             "links": [],
             "forms": [],
+            "fields": [],
             "table_headers": [],
             "grid_headers": [],
             "status_counts": [],
@@ -633,6 +803,294 @@ def collect_readonly_shape(page: Any) -> dict[str, Any]:
             "post_login_likely": False,
         }
     return result if isinstance(result, dict) else {}
+
+
+def discover_editable_worker_pages(page: Any) -> dict[str, list[dict[str, Any]]]:
+    pages: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    clicked_labels: list[str] = []
+
+    known_opener = open_known_editable_worker_route(page)
+    if known_opener.get("ok"):
+        actions.append(known_opener)
+        wait_after_readonly_navigation(page)
+        pages.append(readonly_page_snapshot(f"known-worker-editable:{known_opener.get('label')}", page))
+        return {"pages": pages, "actions": actions}
+
+    if _has_editable_worker_fields(page):
+        pages.append(readonly_page_snapshot("editable-worker-current", page))
+
+    for _attempt in range(5):
+        if _page_has_worker_context(page):
+            dom_add_action = open_worker_add_form_from_dom_link(page)
+            actions.append(dom_add_action)
+            if dom_add_action.get("ok"):
+                wait_after_readonly_navigation(page)
+                pages.append(readonly_page_snapshot(f"worker-editable:{dom_add_action.get('label')}", page))
+                if _has_editable_worker_fields(page):
+                    return {"pages": pages, "actions": actions}
+
+            add_action = click_safe_visible_text(
+                page,
+                WORKER_ADD_LABELS,
+                purpose="worker_add_form_navigation",
+                exclude_texts=clicked_labels,
+            )
+            actions.append(add_action)
+            if add_action.get("ok"):
+                clicked_labels.append(str(add_action.get("label") or ""))
+                wait_after_readonly_navigation(page)
+                pages.append(readonly_page_snapshot(f"worker-editable:{add_action.get('label')}", page))
+                if _has_editable_worker_fields(page):
+                    return {"pages": pages, "actions": actions}
+
+        module_action = click_safe_visible_text(
+            page,
+            WORKER_SECTION_LABELS,
+            purpose="worker_module_navigation",
+            exclude_texts=clicked_labels,
+        )
+        actions.append(module_action)
+        if not module_action.get("ok"):
+            break
+        clicked_labels.append(str(module_action.get("label") or ""))
+        wait_after_readonly_navigation(page)
+        if _human_control_or_context_visible(page):
+            pages.append(readonly_page_snapshot("worker-module-control-required", page))
+            return {"pages": pages, "actions": actions}
+        pages.append(readonly_page_snapshot(f"worker-module:{module_action.get('label')}", page))
+        if _has_editable_worker_fields(page):
+            pages.append(readonly_page_snapshot("editable-worker-current", page))
+            return {"pages": pages, "actions": actions}
+        dom_add_action = open_worker_add_form_from_dom_link(page)
+        actions.append(dom_add_action)
+        if dom_add_action.get("ok"):
+            wait_after_readonly_navigation(page)
+            pages.append(readonly_page_snapshot(f"worker-editable:{dom_add_action.get('label')}", page))
+            if _has_editable_worker_fields(page):
+                return {"pages": pages, "actions": actions}
+    return {"pages": pages, "actions": actions}
+
+
+def open_known_editable_worker_route(page: Any) -> dict[str, Any]:
+    current_url = safe_url(page.url).lower()
+    if "6conecta.com" not in current_url:
+        return {"ok": False, "method": "known_editable_route", "reason": "no_known_route"}
+    target_url = "https://www.6conecta.com/index.php/component/seysconecta/p3:trabajadores/?Itemid=549"
+    try:
+        page.goto(target_url, wait_until="domcontentloaded", timeout=30_000)
+        return {
+            "ok": True,
+            "method": "known_editable_route",
+            "purpose": "worker_add_form_navigation",
+            "label": "6conecta trabajadores",
+        }
+    except Exception as exc:
+        return {"ok": False, "method": "known_editable_route", "reason": type(exc).__name__}
+
+
+def open_worker_add_form_from_dom_link(page: Any) -> dict[str, Any]:
+    try:
+        candidate = page.evaluate(
+            """() => {
+              const current = new URL(window.location.href);
+              const host = current.hostname.toLowerCase();
+              const currentPath = current.pathname.toLowerCase();
+              const clean = (value) => (value || '').toString().replace(/\\s+/g, ' ').trim().slice(0, 180);
+              const visible = (el) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
+              };
+              if (!host.endsWith('ctaimacae.net')) {
+                return { ok: false, reason: 'platform_not_supported' };
+              }
+              const anchors = Array.from(document.querySelectorAll('a[href]'))
+                .map((a) => {
+                  let url;
+                  try { url = new URL(a.getAttribute('href') || '', window.location.href); }
+                  catch { return null; }
+                  const path = url.pathname.toLowerCase();
+                  const text = clean(a.innerText || a.textContent || a.getAttribute('title') || a.getAttribute('aria-label') || a.querySelector('img')?.getAttribute('title') || a.querySelector('img')?.getAttribute('alt') || '');
+                  const rowText = clean(a.closest('tr')?.innerText || '');
+                  const rowHasIdentifier = /\\b(?:\\d{8}[a-z]|[xyz]\\d{7}[a-z])\\b/i.test(rowText);
+                  const rect = a.getBoundingClientRect();
+                  return {
+                    href: url.href,
+                    path,
+                    text,
+                    rowText,
+                    rowHasIdentifier,
+                    visible: visible(a),
+                    top: rect.top,
+                    left: rect.left
+                  };
+                })
+                .filter(Boolean);
+              const workerUpdate = anchors
+                .filter((item) => item.path.endsWith('/trabajadores/update.asp') || (currentPath.includes('/trabajadores/') && item.path.endsWith('/update.asp')))
+                .filter((item) => !item.rowHasIdentifier);
+              const addText = workerUpdate.filter((item) => /\\b(añadir|anadir|agregar|nuevo|alta|crear|insertar)\\b/i.test(item.text));
+              const visibleTop = workerUpdate.filter((item) => item.visible).sort((a, b) => (a.top - b.top) || (b.left - a.left));
+              const chosen = (addText[0] || visibleTop[0] || workerUpdate[0]);
+              if (!chosen) {
+                return { ok: false, reason: 'ctaima_worker_update_link_not_found' };
+              }
+              return {
+                ok: true,
+                href: chosen.href,
+                label: chosen.text || 'CTAIMA worker Update.asp add form',
+                path: chosen.path,
+                row_has_identifier: chosen.rowHasIdentifier
+              };
+            }"""
+        )
+    except Exception as exc:
+        return {"ok": False, "method": "server_issued_dom_link", "purpose": "worker_add_form_navigation", "reason": type(exc).__name__}
+    if not isinstance(candidate, dict) or not candidate.get("ok"):
+        reason = candidate.get("reason") if isinstance(candidate, dict) else "unexpected_result"
+        return {
+            "ok": False,
+            "method": "server_issued_dom_link",
+            "purpose": "worker_add_form_navigation",
+            "reason": reason,
+        }
+    try:
+        page.goto(str(candidate["href"]), wait_until="domcontentloaded", timeout=30_000)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "method": "server_issued_dom_link",
+            "purpose": "worker_add_form_navigation",
+            "reason": type(exc).__name__,
+            "path": candidate.get("path"),
+        }
+    return {
+        "ok": True,
+        "method": "server_issued_dom_link",
+        "purpose": "worker_add_form_navigation",
+        "label": redact(str(candidate.get("label") or "CTAIMA worker Update.asp add form")),
+        "path": str(candidate.get("path") or ""),
+        "route": safe_url(page.url),
+    }
+
+
+def _human_control_or_context_visible(page: Any) -> bool:
+    shape = collect_shape(page)
+    return bool(shape.get("captcha") or shape.get("mfa") or shape.get("human_context_required"))
+
+
+def _has_editable_worker_fields(page: Any) -> bool:
+    snapshot = readonly_page_snapshot("probe", page)
+    if _looks_like_public_contact_or_login(snapshot):
+        return False
+    field_text = json.dumps(snapshot.get("forms", []), ensure_ascii=False).lower()
+    field_text += " " + json.dumps(snapshot.get("fields", []), ensure_ascii=False).lower()
+    tokens = ("dni", "nie", "nif", "nombre", "apellido", "apellidos", "trabajador", "empleado")
+    matched = {token for token in tokens if token in field_text}
+    return bool({"dni", "nie", "nif"} & matched) or (
+        len(matched) >= 2 and _page_has_worker_context(page)
+    )
+
+
+def _looks_like_public_contact_or_login(snapshot: dict[str, Any]) -> bool:
+    text = json.dumps(
+        {
+            "title": snapshot.get("title"),
+            "headings": snapshot.get("headings"),
+            "buttons": snapshot.get("buttons"),
+            "links": snapshot.get("links"),
+            "fields": snapshot.get("fields"),
+        },
+        ensure_ascii=False,
+    ).lower()
+    if any(token in text for token in ("password", "contraseÃ±a", "login", "iniciar sesion", "iniciar sesiÃ³n")):
+        return True
+    contact_tokens = ("contacto", "quiero saber", "cuentanos", "cuÃ©ntanos", "mensaje", "politica de privacidad")
+    worker_tokens = ("trabajador", "empleado", "personal", "plantilla", "dni", "nie", "nif")
+    return any(token in text for token in contact_tokens) and not any(token in text for token in worker_tokens)
+
+
+def _page_has_worker_context(page: Any) -> bool:
+    try:
+        result = page.evaluate(
+            """() => {
+              const text = (document.body ? document.body.innerText : '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+              return /\\b(trabajador|trabajadores|empleado|empleados|personal|usuarios|plantilla)\\b/.test(text);
+            }"""
+        )
+    except Exception:
+        return False
+    return bool(result)
+
+
+def click_safe_visible_text(
+    page: Any,
+    labels: list[str],
+    *,
+    purpose: str,
+    exclude_texts: list[str] | None = None,
+) -> dict[str, Any]:
+    normalized_labels = [normalize_text(label) for label in labels]
+    normalized_exclusions = [normalize_text(label) for label in (exclude_texts or []) if label]
+    try:
+        result = page.evaluate(
+            """({ labels, exclusions, purpose }) => {
+              const clean = (value) => (value || '').toString().replace(/\\s+/g, ' ').trim();
+              const normalize = (value) => clean(value).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase();
+              const visible = (el) => {
+                const style = window.getComputedStyle(el);
+                const rect = el.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || '1') > 0 && rect.width > 0 && rect.height > 0;
+              };
+              const banned = /\\b(guardar|save|enviar|send|subir|upload|eliminar|delete|borrar|finalizar|confirmar|aceptar cambios|firmar|pagar|aprobar|rechazar|cancelar alta)\\b/;
+              const candidates = Array.from(document.querySelectorAll('a, button, input[type=button], input[type=image], img[title], img[alt], [onclick], [role=button], [role=menuitem], li, .x-btn, .x-menu-item, .x-tree-node, .nav-link, .menu-item, .card'))
+                .filter(visible)
+                .map((element) => ({
+                  element,
+                  text: clean(
+                    element.innerText ||
+                    element.textContent ||
+                    element.getAttribute('aria-label') ||
+                    element.getAttribute('title') ||
+                    element.getAttribute('alt') ||
+                    element.getAttribute('value') ||
+                    element.getAttribute('id') ||
+                    element.getAttribute('name') ||
+                    element.getAttribute('class') ||
+                    ''
+                  )
+                }))
+                .filter((item) => item.text.length >= 2 && item.text.length <= 220)
+                .filter((item) => !banned.test(normalize(item.text)))
+                .filter((item) => !exclusions.includes(normalize(item.text)));
+              for (const label of labels) {
+                const exact = candidates.filter((item) => normalize(item.text) === label);
+                const partial = candidates.filter((item) => normalize(item.text).includes(label));
+                const matches = exact.length ? exact : partial;
+                if (matches.length === 1) {
+                  matches[0].element.click();
+                  return { ok: true, method: 'observed_visible_text_click', purpose, label: matches[0].text };
+                }
+                if (matches.length > 1) {
+                  const shortest = matches.sort((a, b) => a.text.length - b.text.length)[0];
+                  shortest.element.click();
+                  return { ok: true, method: 'observed_visible_text_click_shortest', purpose, label: shortest.text, alternatives: matches.slice(0, 5).map((m) => m.text) };
+                }
+              }
+              return { ok: false, method: 'observed_visible_text_click', purpose, reason: 'candidate_not_found' };
+            }""",
+            {"labels": normalized_labels, "exclusions": normalized_exclusions, "purpose": purpose},
+        )
+    except Exception as exc:
+        return {"ok": False, "method": "observed_visible_text_click", "purpose": purpose, "reason": type(exc).__name__}
+    if not isinstance(result, dict):
+        return {"ok": False, "method": "observed_visible_text_click", "purpose": purpose, "reason": "unexpected_result"}
+    if isinstance(result.get("label"), str):
+        result["label"] = redact(result["label"])
+    if isinstance(result.get("alternatives"), list):
+        result["alternatives"] = [redact(str(item)) for item in result["alternatives"][:5]]
+    return result
 
 
 def click_readonly_text(page: Any, labels: list[str]) -> dict[str, Any]:
@@ -885,9 +1343,93 @@ def find_username_field(page: Any) -> Any | None:
         "input:not([type='password']):not([type='hidden'])",
     ]:
         locator = page.locator(selector).first
-        if locator.count() > 0 and locator.is_visible():
+        if locator.count() > 0 and locator.is_visible() and not looks_like_auxiliary_login_field(locator):
             return locator
     return None
+
+
+def fill_login_auxiliary_fields(page: Any, credentials: Any, entry_url: str) -> list[str]:
+    applied: list[str] = []
+    client_value = login_hint_value(credentials, entry_url, "client")
+    if client_value:
+        client_field = find_visible_text_field_by_label(
+            page,
+            labels=("cliente", "client", "customer", "tenant"),
+        )
+        if client_field is not None:
+            fill_field(client_field, client_value)
+            applied.append("client")
+    return applied
+
+
+def login_hint_value(credentials: Any, entry_url: str, key: str) -> str | None:
+    metadata = getattr(credentials, "metadata", None)
+    if isinstance(metadata, dict):
+        login_hints = metadata.get("login_hints")
+        if isinstance(login_hints, dict):
+            value = login_hints.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        value = metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    if key == "client":
+        return client_hint_from_entry_url(entry_url)
+    return None
+
+
+def client_hint_from_entry_url(entry_url: str) -> str | None:
+    try:
+        host = urlparse(entry_url if "://" in entry_url else f"https://{entry_url}").hostname or ""
+    except Exception:
+        return None
+    parts = host.lower().split(".")
+    if len(parts) >= 3 and parts[-2].startswith("egestiona") and parts[0] not in {"www", "login"}:
+        return parts[0]
+    return None
+
+
+def find_visible_text_field_by_label(page: Any, *, labels: tuple[str, ...]) -> Any | None:
+    for label in labels:
+        for selector in [
+            f"input[placeholder*='{label}' i]",
+            f"input[aria-label*='{label}' i]",
+            f"input[name*='{label}' i]",
+            f"input[id*='{label}' i]",
+        ]:
+            locator = page.locator(selector).first
+            if locator.count() > 0 and locator.is_visible():
+                return locator
+        by_label = page.get_by_label(re.compile(label, re.I)).first
+        if by_label.count() > 0 and by_label.is_visible():
+            return by_label
+    return None
+
+
+def looks_like_auxiliary_login_field(locator: Any) -> bool:
+    signature = field_text_signature(locator)
+    return any(token in signature for token in ("cliente", "client", "customer", "tenant"))
+
+
+def field_text_signature(locator: Any) -> str:
+    try:
+        return str(
+            locator.evaluate(
+                """(element) => {
+                  const labels = Array.from(element.labels || []).map((label) => label.innerText || label.textContent || '');
+                  return [
+                    element.getAttribute('id') || '',
+                    element.getAttribute('name') || '',
+                    element.getAttribute('placeholder') || '',
+                    element.getAttribute('aria-label') || '',
+                    ...labels,
+                  ].join(' ').toLowerCase();
+                }""",
+                timeout=2000,
+            )
+        )
+    except Exception:
+        return ""
 
 
 def fill_field(locator: Any, value: str) -> None:
@@ -977,7 +1519,17 @@ def write_status(
 
 
 def safe_url(value: str) -> str:
-    return re.sub(r"([?&][^=]*(?:token|pass|secret|auth|session)[^=]*=)[^&]+", r"\1[redacted]", value, flags=re.I)
+    if not value:
+        return value
+    parsed = urlparse(value)
+    if parsed.scheme and parsed.netloc and parsed.query:
+        params = parse_qsl(parsed.query, keep_blank_values=True)
+        query_parts: list[str] = []
+        for key, raw_val in params:
+            redacted_value = "[empty]" if raw_val == "" else "[redacted]"
+            query_parts.append(f"{quote(key, safe='')}={redacted_value}")
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "&".join(query_parts), ""))
+    return re.sub(r"([?&][^=]*(?:token|pass|secret|auth|session|cae)[^=]*=)[^&]+", r"\1[redacted]", value, flags=re.I)
 
 
 def redact(value: str) -> str:

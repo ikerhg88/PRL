@@ -202,6 +202,8 @@ def extract_labels_from_capture(structure: dict[str, Any]) -> list[ExtractedLabe
                 if input_type in SKIPPED_INPUT_TYPES:
                     continue
                 raw = _first_nonempty(
+                    input_item.get("fieldLabel"),
+                    input_item.get("field_label"),
                     input_item.get("ariaLabel"),
                     input_item.get("aria_label"),
                     input_item.get("placeholder"),

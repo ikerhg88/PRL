@@ -351,10 +351,18 @@ async def _create_worker_transfer(
     session.add(attempt)
     if payload.connector_key == "connector_demo" and result.external_status == "accepted":
         _upsert_demo_worker_registration(session, tenant_id=tenant_id, worker=worker, platform=platform)
-    if payload.connector_key == "connector_rpa_seisconecta_write" and (
-        result.evidence.get("external_write_executed") or result.evidence.get("post_write_read_confirmed")
+    if (
+        payload.connector_key in implemented_write_connector_keys()
+        and result.evidence.get("post_write_read_confirmed")
     ):
-        _upsert_live_worker_registration(session, tenant_id=tenant_id, worker=worker, platform=platform, result=result)
+        _upsert_live_worker_registration(
+            session,
+            tenant_id=tenant_id,
+            worker=worker,
+            platform=platform,
+            result=result,
+            connector_key=payload.connector_key,
+        )
     record_audit(
         session,
         tenant_id=tenant_id,
@@ -550,6 +558,9 @@ def _worker_transfer_metadata(worker: Worker) -> dict[str, object]:
         "last_name",
         "identifier_type",
         "identifier_last4",
+        "social_security_last4",
+        "email",
+        "phone",
         "employment_status",
         "work_position",
         "work_center_name",
@@ -564,6 +575,10 @@ def _worker_transfer_metadata(worker: Worker) -> dict[str, object]:
         "identifier_value": worker.identifier_value,
         "identifier_last4": worker.identifier_last4,
         "nationality": worker.nationality,
+        "email": worker.email,
+        "phone": worker.phone,
+        "social_security_number": worker.social_security_number,
+        "social_security_last4": worker.social_security_last4,
         "contract_type": worker.contract_type,
         "employment_status": worker.employment_status,
         "work_position": worker.work_position,
@@ -621,6 +636,7 @@ def _upsert_live_worker_registration(
     worker: Worker,
     platform: ExternalPlatform,
     result: object,
+    connector_key: str,
 ) -> WorkerPlatformRegistration:
     registration = session.scalar(
         select(WorkerPlatformRegistration).where(
@@ -655,7 +671,7 @@ def _upsert_live_worker_registration(
             external_worker_id=str(external_worker_id) if external_worker_id else None,
             registration_status=registration_status,
             assignment_scope=worker.work_center_name or worker.work_position,
-            source="connector_rpa_seisconecta_write",
+            source=connector_key,
             last_synced_at=datetime.now(timezone.utc),
             notes=f"{notes} Evidencia: {evidence.get('status_artifact')}",
         )
@@ -666,7 +682,7 @@ def _upsert_live_worker_registration(
         if external_worker_id:
             registration.external_worker_id = str(external_worker_id)
         registration.assignment_scope = worker.work_center_name or worker.work_position
-        registration.source = "connector_rpa_seisconecta_write"
+        registration.source = connector_key
         registration.last_synced_at = datetime.now(timezone.utc)
         registration.notes = f"{notes} Evidencia: {evidence.get('status_artifact')}"
     return registration

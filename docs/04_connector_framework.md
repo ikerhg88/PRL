@@ -98,6 +98,24 @@ Separacion de responsabilidades:
 - Tenant/empresa: `PlatformAccount`, `PlatformAccountUserAccess`, mapeos, permisos y operaciones habilitadas para el cliente.
 - Sistema: registry de conectores, modulos instalados, health tecnico y catalogo global de metodos.
 
+### 6.1. Paths de escritura por cuenta
+
+Los paths de escritura observados se guardan en `platform_write_paths`, siempre
+asociados a tenant, plataforma, cuenta externa y operacion. Sirven para recordar
+como llegar a un formulario o lectura posterior en una combinacion concreta
+plataforma+empresa+centro.
+
+Reglas:
+
+- Un path nace en `pending_review`; no puede activar escritura hasta aprobacion.
+- Para aprobarlo debe tener evidencia o captura asociada, `field_paths` y
+  `readback_paths`.
+- El path puede guardar etiquetas, rutas y selectores redaccionados, pero nunca
+  credenciales, cookies, tokens ni valores reales de formularios.
+- Un preview puede usar paths `approved` para preparar cambios; el submit live
+  sigue requiriendo dry-run previo, autorizacion humana, auditoria antes/despues
+  y lectura posterior confirmada.
+
 ## 7. RPA manifest
 
 Cada conector RPA debe declarar:
@@ -124,7 +142,7 @@ proveedor puede declarar varios metodos y variantes:
 - `read_mapping_variants`: columnas, etiquetas y estados externos que se pueden
   leer y traducir al modelo interno.
 - `write_mapping_variants`: campos y documentos que se pueden preparar en
-  preview; solo se acthugo con mapeo aprobado, dry-run y aprobacion humana.
+  preview; solo se activan con mapeo aprobado, dry-run y aprobacion humana.
 - `human_handoff_points`: captcha, MFA, sesion duplicada, selector ambiguo,
   pantalla inesperada o datos fuera de alcance.
 

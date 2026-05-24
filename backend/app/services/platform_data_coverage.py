@@ -188,13 +188,7 @@ def build_platform_data_coverage(
                     "manual_approval_required": bool(account.manual_approval_required),
                     "dry_run": bool(account.dry_run),
                     "categories": [],
-                    "blockers": [
-                        {
-                            "kind": "account_inactive",
-                            "severity": "neutral",
-                            "detail": "Cuenta dada de baja: no genera avisos ni incidencias operativas.",
-                        }
-                    ],
+                    "blockers": ["cuenta_inactiva"],
                     "pending_items": [],
                     "pending_summary": {"total": 0, "red": 0, "orange": 0},
                     "next_action": "Cuenta baja/inactiva; no se revisa automaticamente.",

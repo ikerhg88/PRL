@@ -334,16 +334,16 @@ def _resolve_account(
     accounts = list(session.scalars(statement.order_by(PlatformRpaAccountProposal.id)))
     manifest = session.get(PlatformRpaManifest, manifest_id)
     if manifest is not None and manifest.platform_slug == "ctaima":
-        cliente_a = next(
+        sofidel = next(
             (
                 account
                 for account in accounts
-                if account.external_company_name and "CLIENTE_A" in account.external_company_name.upper()
+                if account.external_company_name and "SOFIDEL" in account.external_company_name.upper()
             ),
             None,
         )
-        if cliente_a is not None:
-            return cliente_a
+        if sofidel is not None:
+            return sofidel
     return accounts[0] if accounts else None
 
 
@@ -523,19 +523,34 @@ def _first_pending_registration(
         _normalize_platform_token(manifest.platform_name),
     }
     account_scope = (account.external_company_name or "").upper() if account is not None else ""
+    account_platform_id = account.platform_account_id if account is not None else None
     candidates: list[tuple[int, Worker, WorkerPlatformRegistration]] = []
     for worker, registration in rows:
+        if account_platform_id is not None and registration.platform_account_id not in {None, account_platform_id}:
+            continue
         registration_token = _normalize_platform_token(registration.platform_name)
         if not any(
             token and (registration_token == token or token in registration_token or registration_token in token)
             for token in manifest_tokens
         ):
             continue
+        if account_scope and registration.assignment_scope and not _scope_matches_account(
+            registration.assignment_scope,
+            account_scope,
+        ):
+            continue
+        if account_scope and registration.assignment_scope is None and registration.platform_account_id is None:
+            continue
         if registration.registration_status in {"registered", "valid", "valid_external", "synced", "active"}:
             continue
         score = 0
-        if account_scope and registration.assignment_scope and registration.assignment_scope.upper() in account_scope:
+        if account_scope and registration.assignment_scope and _scope_matches_account(
+            registration.assignment_scope,
+            account_scope,
+        ):
             score += 10
+        if account_platform_id is not None and registration.platform_account_id == account_platform_id:
+            score += 20
         if registration.registration_status == "missing_required_document":
             score += 5
         candidates.append((score, worker, registration))
@@ -553,6 +568,36 @@ def _host(entry_url: str | None) -> str | None:
 
 def _normalize_platform_token(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+
+def _scope_matches_account(registration_scope: str, account_scope: str) -> bool:
+    registration_normalized = _normalize_scope_text(registration_scope)
+    account_normalized = _normalize_scope_text(account_scope)
+    if not registration_normalized or not account_normalized:
+        return False
+    if registration_normalized in account_normalized or account_normalized in registration_normalized:
+        return True
+    return bool(_scope_tokens(registration_normalized) & _scope_tokens(account_normalized))
+
+
+def _normalize_scope_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
+def _scope_tokens(value: str) -> set[str]:
+    stopwords = {
+        "arm",
+        "industrial",
+        "assemblies",
+        "assembly",
+        "grupo",
+        "group",
+        "empresa",
+        "company",
+        "centro",
+        "trabajo",
+    }
+    return {token for token in value.split() if len(token) >= 4 and token not in stopwords}
 
 
 def _redact_gateway_text(value: str) -> str:

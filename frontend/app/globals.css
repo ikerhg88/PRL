@@ -218,31 +218,6 @@ a {
   padding: 6px 9px;
 }
 
-.contextBand {
-  align-items: center;
-  background: #ecfeff;
-  border: 1px solid #a5f3fc;
-  border-radius: 8px;
-  color: #164e63;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 13px 16px;
-}
-
-.contextBand strong {
-  color: #083344;
-}
-
-.contextBand span {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid #cffafe;
-  border-radius: 999px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  padding: 5px 9px;
-}
-
 .topbar h2 {
   font-size: 1.7rem;
 }
@@ -267,14 +242,6 @@ a {
 .iconButton.small {
   height: 32px;
   width: 32px;
-}
-
-.dangerIcon {
-  background: #0f766e;
-}
-
-.dangerIcon:hover {
-  background: #991b1b;
 }
 
 .primaryButton,
@@ -365,6 +332,40 @@ a {
   line-height: 1;
 }
 
+.massUpdateGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.massUpdateGrid article,
+.massUpdatePreview article {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.massUpdateGrid span,
+.massUpdatePreview span,
+.massUpdatePreview small {
+  color: var(--muted);
+}
+
+.massUpdateGrid strong {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.massUpdatePreview {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
 .panel {
   display: grid;
   gap: 18px;
@@ -398,17 +399,9 @@ a {
   border-top: 1px solid var(--line);
 }
 
-.tableHead {
-  background: var(--surface-strong);
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 700;
-  min-height: 42px;
-}
-
 .armDocumentHead,
 .armDocumentRow {
-  grid-template-columns: 1.15fr 0.72fr 0.95fr 0.95fr 1.2fr 0.62fr;
+  grid-template-columns: 1.08fr 0.82fr 0.92fr 0.82fr 0.9fr 1.08fr 0.84fr;
 }
 
 .evidenceHead,
@@ -429,7 +422,48 @@ a {
 
 .newPlatformHead,
 .newPlatformRow {
-  grid-template-columns: 1fr 1.08fr 0.75fr 0.95fr 0.95fr 0.92fr 0.58fr;
+  grid-template-columns: 0.92fr 1.02fr 0.72fr 0.88fr 0.88fr 0.9fr 0.9fr;
+}
+
+.platformHelpGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.platformHelpGrid article {
+  align-items: flex-start;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 14px;
+}
+
+.platformHelpGrid svg {
+  color: var(--accent);
+}
+
+.platformHelpGrid p {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  margin: 5px 0 0;
+}
+
+.platformRowActions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.platformRowActions .primaryButton,
+.platformRowActions .secondaryButton {
+  min-height: 34px;
+  padding: 7px 10px;
+  width: 100%;
 }
 
 .notificationHead,
@@ -503,6 +537,50 @@ a {
 .workerDragItem svg,
 .platformDropTarget svg {
   color: var(--accent);
+}
+
+.writeReadinessBox {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+}
+
+.writeReadinessBox small {
+  color: var(--muted);
+  display: block;
+  margin-top: 3px;
+}
+
+.readinessWarning {
+  align-items: center;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #9a3412;
+  display: flex;
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.readinessWarning a {
+  color: #0f766e;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.writePlanSummary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.writePlanSummary small {
+  flex-basis: 100%;
 }
 
 .platformDropTarget {
@@ -622,13 +700,6 @@ a {
   color: var(--accent);
 }
 
-.armWorkbench {
-  align-items: start;
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
 .armScreen {
   display: grid;
   gap: 18px;
@@ -671,28 +742,18 @@ a {
   justify-content: space-between;
 }
 
-.armMainGrid {
-  align-items: start;
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(290px, 0.45fr) minmax(0, 1fr);
-}
-
-.armEditGrid,
-.armUploadGrid {
+.armEditGrid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.armEditGrid label,
-.armUploadGrid label {
+.armEditGrid label {
   display: grid;
   gap: 6px;
 }
 
-.armEditGrid label > span,
-.armUploadGrid label > span {
+.armEditGrid label > span {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
@@ -701,9 +762,7 @@ a {
 
 .armEditGrid input,
 .armEditGrid select,
-.armEditGrid textarea,
-.armUploadGrid input,
-.armUploadGrid select {
+.armEditGrid textarea {
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -719,8 +778,7 @@ a {
   resize: vertical;
 }
 
-.armEditGrid .primaryButton,
-.armUploadGrid .primaryButton {
+.armEditGrid .primaryButton {
   align-items: center;
   align-self: end;
   display: inline-flex;
@@ -728,71 +786,167 @@ a {
   justify-content: center;
 }
 
-.documentTypeGrid {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.documentLegend {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
 }
 
-.documentTypeCard {
+.legendItem {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  gap: 6px;
+}
+
+.armDocumentTypeCreate {
+  align-items: end;
   background: #f8fafc;
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  gap: 5px;
+  gap: 12px;
+  grid-template-columns: 1.1fr 0.95fr 1.25fr 0.66fr 0.74fr auto;
   padding: 12px;
 }
 
-.documentTypeCard span,
-.documentTypeCard small {
-  color: var(--muted);
-}
-
-.documentTypeCard span {
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.workerPickerList {
+.armDocumentTypeCreate label,
+.armInlineDocumentForm label {
   display: grid;
-  gap: 8px;
-  max-height: 680px;
-  overflow: auto;
-  padding-right: 4px;
+  gap: 5px;
 }
 
-.workerPickerItem {
-  align-items: center;
+.armDocumentTypeCreate label > span,
+.armInlineDocumentForm label > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.armDocumentTypeCreate input,
+.armInlineDocumentForm input {
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text);
-  cursor: pointer;
+  font: inherit;
+  min-height: 38px;
+  padding: 8px 9px;
+  width: 100%;
+}
+
+.checkboxField {
+  align-items: center;
+  display: inline-flex !important;
+  gap: 7px;
+  min-height: 38px;
+}
+
+.checkboxField input {
+  min-height: auto;
+  width: auto;
+}
+
+.armDocumentRowGroup + .armDocumentRowGroup {
+  border-top: 1px solid var(--line);
+}
+
+.armDocumentRowGroup .tableRow + .tableRow,
+.armDocumentRowGroup + .tableRow {
+  border-top: 0;
+}
+
+.armDocumentEditPanel {
+  background: #f8fafc;
+  border-top: 1px dashed var(--line);
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 66px;
-  padding: 11px 12px;
-  text-align: left;
+  gap: 12px;
+  padding: 14px;
 }
 
-.workerPickerItem:hover,
-.workerPickerItem.active {
-  border-color: var(--accent);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.workerPickerItem small {
-  color: var(--muted);
+.armDocumentEditPanel strong,
+.armDocumentEditPanel small {
   display: block;
-  font-size: 0.78rem;
-  margin-top: 3px;
+}
+
+.armInlineDocumentForm {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.2fr repeat(3, 0.78fr) auto auto;
+}
+
+.documentActionCell {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .armDirectoryGrid {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workerListTitle {
+  align-items: flex-start;
+}
+
+.workerFilters {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1fr) minmax(170px, 0.25fr) minmax(180px, 0.25fr);
+  margin-bottom: 16px;
+}
+
+.workerFilters label {
+  display: grid;
+  gap: 6px;
+}
+
+.workerFilters label > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workerFilters select {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  min-height: 40px;
+  padding: 9px 10px;
+  width: 100%;
+}
+
+.workerCreatePanel {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.workerCreateActions,
+.workerLifecycleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .workerDirectoryItem {
@@ -821,6 +975,10 @@ a {
   display: block;
   font-size: 0.78rem;
   margin-top: 4px;
+}
+
+.workerEmptyState {
+  grid-column: 1 / -1;
 }
 
 .inlineLink {
@@ -1021,38 +1179,6 @@ a {
   width: 100%;
 }
 
-.fixedActionList {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.fixedAction {
-  background: #f8fafc;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  cursor: pointer;
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  text-align: left;
-}
-
-.fixedAction.active {
-  border-color: var(--accent);
-}
-
-.fixedAction:disabled {
-  cursor: not-allowed;
-  opacity: 0.64;
-}
-
-.fixedAction span {
-  font-weight: 900;
-}
-
-.fixedAction small,
 .gatewayOperator span,
 .gatewayOperator small,
 .gatewayRequestBody small {
@@ -1104,21 +1230,6 @@ a {
   margin: 0 0 8px;
 }
 
-.gatewaySteps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.gatewaySteps span {
-  background: #e2e8f0;
-  border-radius: 999px;
-  color: #243447;
-  font-size: 0.76rem;
-  font-weight: 800;
-  padding: 6px 9px;
-}
-
 .notice {
   align-items: flex-start;
   background: #fff7ed;
@@ -1157,6 +1268,7 @@ a {
 
 .statusBadge.compliant,
 .statusBadge.valid_internal,
+.statusBadge.hub_uploaded,
 .statusBadge.accepted,
 .statusBadge.ok,
 .statusBadge.available,
@@ -1175,6 +1287,7 @@ a {
 .statusBadge.trial,
 .statusBadge.pending_review,
 .statusBadge.pending_internal_review,
+.statusBadge.hub_review,
 .statusBadge.paused,
 .statusBadge.created,
 .statusBadge.human_action_required,
@@ -1190,7 +1303,9 @@ a {
 
 .statusBadge.blocked,
 .statusBadge.missing,
+.statusBadge.hub_missing,
 .statusBadge.expired,
+.statusBadge.hub_expired,
 .statusBadge.disabled,
 .statusBadge.baja,
 .statusBadge.disabled_until_configured,
@@ -1205,12 +1320,6 @@ a {
 .statusBadge.neutral {
   background: #e2e8f0;
   color: #243447;
-}
-
-.pillRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .roleBox {
@@ -1263,15 +1372,24 @@ button.roleBox {
   padding: 16px;
 }
 
-.compactTitle {
-  margin-bottom: 12px;
-}
-
 .actionControls {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.filterHint {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
 }
 
 .messageBar {
@@ -1293,14 +1411,6 @@ button.roleBox {
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #7f1d1d;
-}
-
-.clickableRow {
-  cursor: pointer;
-}
-
-.selectedRow {
-  background: #ecfeff;
 }
 
 .splitPanels {
@@ -1359,15 +1469,6 @@ button.roleBox {
   grid-column: 1 / -1;
 }
 
-.visuallyHidden {
-  height: 1px;
-  margin: -1px;
-  opacity: 0;
-  overflow: hidden;
-  position: absolute;
-  width: 1px;
-}
-
 .authShell {
   display: grid;
   gap: 22px;
@@ -1405,21 +1506,8 @@ button.roleBox {
   max-width: 760px;
 }
 
-.authGrid {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(300px, 0.78fr) minmax(420px, 1.22fr);
-}
-
-.authPanel,
-.authVerify {
+.authPanel {
   align-content: start;
-}
-
-.authTwoCols {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .companyChoiceList {
@@ -1459,12 +1547,6 @@ button.roleBox {
   min-height: 42px;
   padding: 9px 10px;
   width: 100%;
-}
-
-.authActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .inlineButton {
@@ -1525,19 +1607,14 @@ button.roleBox {
   .gatewayActiveGrid,
   .gatewayTimeline,
   .armCompanyGrid,
-  .armWorkbench,
-  .armMainGrid,
   .armEditGrid,
-  .armUploadGrid,
-  .documentTypeGrid,
+  .armDocumentTypeCreate,
+  .armInlineDocumentForm,
   .armDirectoryGrid,
-  .authGrid,
-  .authTwoCols {
+  .workerFilters,
+  .platformHelpGrid,
+  .massUpdateGrid {
     grid-template-columns: 1fr;
-  }
-
-  .tableHead {
-    display: none;
   }
 }
 

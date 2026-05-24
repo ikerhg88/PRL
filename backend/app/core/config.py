@@ -94,6 +94,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_prefix="IPRL_CAE_",
         env_nested_delimiter="__",
+        populate_by_name=True,
         extra="ignore",
     )
 

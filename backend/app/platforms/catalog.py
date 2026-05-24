@@ -496,6 +496,17 @@ WRITE_RPA_CONNECTOR_KEYS = {
     "timenet": "connector_rpa_timenet_write",
     "validate": "connector_rpa_validate_write",
     "vitaly_cae": "connector_rpa_vitaly_cae_write",
+    "dokify": "connector_rpa_dokyfy_write",
+    "egestiona": "connector_rpa_egestiona_write",
+    "folyo": "connector_rpa_folyo_write",
+    "iedoce": "connector_rpa_iedoce_write",
+    "asemwebservices_integra": "connector_rpa_integra_asem_write",
+    "koordinatu": "connector_rpa_koordinatu_write",
+    "metacontratas": "connector_rpa_metacontratas_write",
+    "quioo": "connector_rpa_quioo_write",
+    "sgs_gestiona": "connector_rpa_sgs_gestiona_write",
+    "smartosh": "connector_rpa_smartosh_write",
+    "ucae": "connector_rpa_ucae_write",
 }
 
 
@@ -826,7 +837,7 @@ def default_platform_catalog() -> list[PlatformCatalogItem]:
             platform_key="folyo",
             name="Folyo",
             status="researched_platform_observed_arm",
-            notes="Portal Folyo observado en cuentas ARM para entorno CLIENTE_J.",
+            notes="Portal Folyo observado en cuentas ARM para entorno SEAT.",
             api_status="no_public_api_found",
             api_notes="No se ha localizado documentacion API publica.",
         ),

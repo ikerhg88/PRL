@@ -16,6 +16,7 @@ from app.api.platforms import router as platforms_router
 from app.api.platforms import tenant_router as tenant_platforms_router
 from app.api.platform_authorizations import router as platform_authorizations_router
 from app.api.platform_maps import router as platform_maps_router
+from app.api.platform_observations import router as platform_observations_router
 from app.api.platform_contracts import router as platform_contracts_router
 from app.api.platform_review_schedules import router as platform_review_schedules_router
 from app.api.requirements import router as requirements_router
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(platforms_router, prefix=settings.api_prefix)
     app.include_router(tenant_platforms_router, prefix=settings.api_prefix)
     app.include_router(platform_maps_router, prefix=settings.api_prefix)
+    app.include_router(platform_observations_router, prefix=settings.api_prefix)
     app.include_router(platform_contracts_router, prefix=settings.api_prefix)
     app.include_router(platform_authorizations_router, prefix=settings.api_prefix)
     app.include_router(platform_review_schedules_router, prefix=settings.api_prefix)

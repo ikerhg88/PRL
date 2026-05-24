@@ -4,12 +4,14 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.connectors.base import ConnectorContext
 from app.connectors.rpa.write_registry import (
     get_write_connector,
+    helper_metadata_for_platform_slug,
+    live_adapter_status_for_platform_slug,
     list_write_connectors,
     write_connector_key_for_platform_slug,
 )
@@ -21,6 +23,7 @@ from app.db.models import (
     PlatformRpaAccountProposal,
     PlatformRpaManifest,
     Worker,
+    WorkerPlatformRegistration,
 )
 from app.services.platform_edit_methods import EDITABLE_OPERATION_REQUIRED_KEYS
 from app.services.platform_write_previews import WritePreviewError, build_write_operation_preview
@@ -33,7 +36,6 @@ DOCUMENT_OPERATIONS = {
     "upload_company_document",
     "upload_machine_vehicle_document",
 }
-SPECIFIC_LIVE_ADAPTER_CONNECTORS = {"connector_rpa_seisconecta_write"}
 
 
 async def build_platform_write_probe_matrix(
@@ -139,7 +141,8 @@ def live_write_adapter_catalog(session: Session, *, tenant_id: int) -> dict[str,
         connector_key = write_connector_key_for_platform_slug(manifest.platform_slug)
         connector = connectors.get(connector_key or "")
         connector_profile = getattr(connector, "profile", None)
-        live_adapter_status = _live_adapter_status(manifest.platform_slug)
+        live_adapter_status = live_adapter_status_for_platform_slug(manifest.platform_slug)
+        helper = helper_metadata_for_platform_slug(manifest.platform_slug)
         rows.append(
             {
                 "manifest_id": manifest.id,
@@ -151,6 +154,8 @@ def live_write_adapter_catalog(session: Session, *, tenant_id: int) -> dict[str,
                 "write_connector_registered": connector is not None,
                 "supported_operations": list(getattr(connector_profile, "supported_operations", ())),
                 "live_adapter_status": live_adapter_status,
+                "helper": helper,
+                "helper_status": str(helper.get("status")) if isinstance(helper, dict) else "missing",
                 "dry_run_default": manifest.dry_run_default,
                 "manual_approval_required": manifest.manual_approval_required,
                 "required_before_live_write": _required_before_live_write(live_adapter_status),
@@ -202,14 +207,25 @@ async def _probe_operation(
         "host": account.host,
         "operation": operation,
         "write_connector_key": write_connector_key_for_platform_slug(manifest.platform_slug),
-        "live_adapter_status": _live_adapter_status(manifest.platform_slug),
+        "live_adapter_status": live_adapter_status_for_platform_slug(manifest.platform_slug),
+        "helper": helper_metadata_for_platform_slug(manifest.platform_slug),
         "external_write_executed": False,
+        "duplicate_guard_blocked": False,
     }
 
     if operation in WORKER_OPERATIONS and worker is None:
         return base | _skipped("skipped_no_worker", "No worker candidate is available in the Hub.")
     if operation in DOCUMENT_OPERATIONS and document_version is None:
         return base | _skipped("skipped_no_document_version", "No compatible local document version is available.")
+    existing_registration: WorkerPlatformRegistration | None = None
+    if operation == "upsert_worker" and worker is not None:
+        existing_registration = _existing_worker_registration(
+            session,
+            tenant_id=tenant_id,
+            worker=worker,
+            platform=platform,
+            account=account,
+        )
 
     try:
         preview = build_write_operation_preview(
@@ -228,6 +244,8 @@ async def _probe_operation(
             "mapping_ready": False,
             "local_data_ready": False,
             "account_ready_for_live": False,
+            "write_path_field_count": 0,
+            "approved_write_path_field_count": 0,
             "blocker_count": 1,
             "blocker_kinds": "preview_error:1",
             "blocked_keys": "",
@@ -238,6 +256,14 @@ async def _probe_operation(
         }
 
     row = base | _row_from_preview(preview)
+    if existing_registration is not None:
+        row["status"] = "already_registered"
+        row["duplicate_guard_blocked"] = True
+        row["next_action"] = (
+            "El trabajador ya consta en esta plataforma/cuenta; "
+            f"estado actual: {existing_registration.registration_status}."
+        )
+        return row
     if connector_dry_run and operation == "upsert_worker" and worker is not None and row["write_connector_key"]:
         connector = get_write_connector(str(row["write_connector_key"]))
         if connector is not None:
@@ -277,12 +303,26 @@ def _row_from_preview(preview: dict[str, Any]) -> dict[str, Any]:
     raw_readiness = preview.get("readiness")
     readiness: dict[str, Any] = raw_readiness if isinstance(raw_readiness, dict) else {}
     planned_changes = _planned_changes(preview)
+    raw_fields = preview.get("fields")
+    fields: list[Any] = raw_fields if isinstance(raw_fields, list) else []
+    write_path_fields = [
+        field
+        for field in fields
+        if isinstance(field, dict) and int(field.get("write_path_count") or 0) > 0
+    ]
+    approved_write_path_fields = [
+        field
+        for field in fields
+        if isinstance(field, dict) and int(field.get("approved_write_path_count") or 0) > 0
+    ]
     return {
         "status": preview.get("status"),
         "preview_ready": bool(readiness.get("preview_ready")),
         "mapping_ready": bool(readiness.get("mapping_ready")),
         "local_data_ready": bool(readiness.get("local_data_ready")),
         "account_ready_for_live": bool(readiness.get("account_ready_for_live")),
+        "write_path_field_count": len(write_path_fields),
+        "approved_write_path_field_count": len(approved_write_path_fields),
         "blocker_count": len(blockers),
         "blocker_kinds": _counter_text(blocker_counter),
         "blocked_keys": ", ".join(blocked_keys[:12]),
@@ -369,6 +409,40 @@ def _select_worker(
     return max(workers, key=_worker_score)
 
 
+def _existing_worker_registration(
+    session: Session,
+    *,
+    tenant_id: int,
+    worker: Worker,
+    platform: ExternalPlatform,
+    account: PlatformRpaAccountProposal,
+) -> WorkerPlatformRegistration | None:
+    existing_statuses = {
+        "accepted",
+        "accepted_with_warnings",
+        "confirmed",
+        "submitted",
+        "submitted_pending_readback",
+        "pending_external_validation",
+        "review_required",
+        "missing_required_document",
+    }
+    statement = select(WorkerPlatformRegistration).where(
+        WorkerPlatformRegistration.tenant_id == tenant_id,
+        WorkerPlatformRegistration.worker_id == worker.id,
+        WorkerPlatformRegistration.external_platform_id == platform.id,
+        WorkerPlatformRegistration.registration_status.in_(existing_statuses),
+    )
+    if account.platform_account_id is not None:
+        statement = statement.where(
+            or_(
+                WorkerPlatformRegistration.platform_account_id == account.platform_account_id,
+                WorkerPlatformRegistration.platform_account_id.is_(None),
+            )
+        )
+    return session.scalar(statement.order_by(WorkerPlatformRegistration.id.desc()).limit(1))
+
+
 def _worker_score(worker: Worker) -> int:
     fields = (
         worker.identifier_value,
@@ -403,6 +477,8 @@ def _skipped(status: str, detail: str) -> dict[str, Any]:
         "mapping_ready": False,
         "local_data_ready": False,
         "account_ready_for_live": False,
+        "write_path_field_count": 0,
+        "approved_write_path_field_count": 0,
         "blocker_count": 0,
         "blocker_kinds": "",
         "blocked_keys": "",
@@ -411,15 +487,6 @@ def _skipped(status: str, detail: str) -> dict[str, Any]:
         "connector_dry_run_status": "",
         "connector_dry_run_message": "",
     }
-
-
-def _live_adapter_status(platform_slug: str) -> str:
-    connector_key = write_connector_key_for_platform_slug(platform_slug)
-    if connector_key is None:
-        return "no_write_connector"
-    if connector_key in SPECIFIC_LIVE_ADAPTER_CONNECTORS:
-        return "specific_live_adapter_available"
-    return "blocked_live_adapter_missing"
 
 
 def _required_before_live_write(live_adapter_status: str) -> list[str]:
@@ -456,6 +523,10 @@ def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "mapping_ready_rows": sum(1 for row in rows if row["mapping_ready"]),
         "local_data_ready_rows": sum(1 for row in rows if row["local_data_ready"]),
         "account_ready_for_live_rows": sum(1 for row in rows if row["account_ready_for_live"]),
+        "rows_with_write_paths": sum(1 for row in rows if int(row.get("write_path_field_count") or 0) > 0),
+        "rows_with_approved_write_paths": sum(
+            1 for row in rows if int(row.get("approved_write_path_field_count") or 0) > 0
+        ),
         "external_writes_executed": sum(1 for row in rows if row["external_write_executed"]),
         "live_adapter_statuses": dict(sorted(live_adapters.items())),
         "connector_dry_run_statuses": dict(sorted(dry_run.items())),

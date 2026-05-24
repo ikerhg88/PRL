@@ -16,7 +16,7 @@ Se incorporaron a la demo local documentos propios de ARM desde `requisitos/` me
 
 Empresa:
 
-- `Empresa Demo Industrial, S.L.`
+- `ARM Industrial Assemblies, S.L.`
 - `company_id=5`
 - `tax_id=B95868543`
 
@@ -27,13 +27,13 @@ Documentos cargados:
 
 Trabajadores creados desde propuestas:
 
-- Alicia Gomez.
-- Bruno Lopez.
-- Carlos Perez Ruiz.
-- Daniel Pendiente revisar.
-- Eduardo Pendiente revisar.
-- Fernando Pendiente revisar.
-- Hugo Pendiente revisar.
+- Eleder Bilbao.
+- Jose Manuel Alvarez.
+- Santiago Garcia Fernandez.
+- Alejandro Pendiente revisar.
+- Alfonso Pendiente revisar.
+- David Pendiente revisar.
+- Ivan Pendiente revisar.
 
 ## Criterios de seguridad
 

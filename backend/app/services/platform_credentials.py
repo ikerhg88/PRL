@@ -4,6 +4,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from app.services.credential_vault import decrypt_platform_credentials, is_encry
 class PlatformCredentials:
     username: str
     password: str
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -36,7 +38,11 @@ def resolve_platform_credentials(
         except Exception:
             return CredentialResolution(credentials=None, expected_env_vars=expected)
         return CredentialResolution(
-            credentials=PlatformCredentials(username=decrypted.username, password=decrypted.password),
+            credentials=PlatformCredentials(
+                username=decrypted.username,
+                password=decrypted.password,
+                metadata=decrypted.metadata,
+            ),
             expected_env_vars=expected,
         )
     for base_name in expected:
@@ -68,8 +74,26 @@ def _credentials_from_json(raw: str) -> PlatformCredentials | None:
     username = payload.get("username") or payload.get("user") or payload.get("login")
     password = payload.get("password") or payload.get("pass")
     if isinstance(username, str) and isinstance(password, str) and username and password:
-        return PlatformCredentials(username=username, password=password)
+        metadata = _metadata_from_payload(payload)
+        return PlatformCredentials(username=username, password=password, metadata=metadata)
     return None
+
+
+def _metadata_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_metadata = payload.get("metadata")
+    metadata: dict[str, Any] = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+    raw_login_hints = payload.get("login_hints")
+    login_hints: dict[str, Any] = dict(raw_login_hints) if isinstance(raw_login_hints, dict) else {}
+    merged_hints: dict[str, Any] = dict(login_hints)
+    for key in ("client", "customer", "tenant"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            merged_hints[key] = value.strip()
+    if merged_hints:
+        raw_existing_hints = metadata.get("login_hints")
+        existing_hints = dict(raw_existing_hints) if isinstance(raw_existing_hints, dict) else {}
+        metadata = {**metadata, "login_hints": {**existing_hints, **merged_hints}}
+    return metadata
 
 
 def _expected_env_vars(*, secret_ref: str | None, platform_account_id: str) -> list[str]:

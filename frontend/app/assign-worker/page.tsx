@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   FileUp,
   GripVertical,
+  ExternalLink,
   RefreshCw,
   Send,
   UserPlus,
@@ -22,7 +23,12 @@ type Worker = {
   first_name: string;
   last_name: string;
   identifier_last4: string | null;
+  nationality: string | null;
+  contract_type: string | null;
   work_position: string | null;
+  email: string | null;
+  phone: string | null;
+  social_security_last4: string | null;
   status: string;
 };
 
@@ -84,6 +90,33 @@ type Transfer = {
   status: string;
   connector_key: string;
   operation: string;
+  last_attempt_status?: string | null;
+  last_attempt_message?: string | null;
+  post_write_read_confirmed?: boolean | null;
+  valid_external_write?: boolean | null;
+};
+
+type PlatformReviewRun = {
+  id: number;
+  platform_slug: string;
+  platform_name: string;
+  account_proposal_id: number | null;
+  operation: string;
+  result_status?: string | null;
+};
+
+type CaptureAction = {
+  requestId: number;
+  platformName: string;
+  targetTitle: string;
+  workerName: string;
+  url: string;
+};
+
+type CreatedTransferRow = {
+  target: PlatformTarget;
+  transfer: Transfer;
+  kind: "worker" | "document";
 };
 
 type WorkerPlatformRegistration = {
@@ -97,6 +130,39 @@ type WorkerPlatformRegistration = {
   source: string;
   last_synced_at: string | null;
   notes: string | null;
+};
+
+type MassUpdateActionBlocker = {
+  kind: string;
+  standard_key?: string;
+  detail: string;
+};
+
+type MassUpdateAction = {
+  action_id: string;
+  operation: string;
+  account_proposal_id: number;
+  platform_slug: string;
+  platform_name: string;
+  external_company_name: string | null;
+  live_adapter_status: string | null;
+  preview_status: string;
+  ready_for_submit: boolean;
+  capture_recommended: boolean;
+  blockers: MassUpdateActionBlocker[];
+  next_action: string;
+};
+
+type MassUpdatePlan = {
+  summary: {
+    actions: number;
+    ready_for_submit: number;
+    blocked: number;
+    capture_recommended: number;
+    with_live_helper: number;
+    by_preview_status: Record<string, number>;
+  };
+  actions: MassUpdateAction[];
 };
 
 type PlatformTarget = {
@@ -158,18 +224,26 @@ export default function AssignWorkerPage() {
   const [schedules, setSchedules] = useState<PlatformReviewSchedule[]>([]);
   const [coverage, setCoverage] = useState<PlatformDataCoverage | null>(null);
   const [registrationsByWorker, setRegistrationsByWorker] = useState<Record<number, WorkerPlatformRegistration[]>>({});
+  const [writePlan, setWritePlan] = useState<MassUpdatePlan | null>(null);
+  const [writePlanLoading, setWritePlanLoading] = useState(false);
   const [selectedWorkerId, setSelectedWorkerId] = useState<number | null>(null);
   const [workerFilter, setWorkerFilter] = useState("");
   const [message, setMessage] = useState("Cargando trabajadores y plataformas.");
   const [busy, setBusy] = useState(false);
   const [hoverTargetKey, setHoverTargetKey] = useState<string | null>(null);
+  const [captureActions, setCaptureActions] = useState<CaptureAction[]>([]);
 
   useEffect(() => {
     void loadData();
   }, []);
 
+  useEffect(() => {
+    void loadSelectedWorkerWritePlan();
+  }, [selectedWorkerId]);
+
   async function loadData() {
     setBusy(true);
+    setCaptureActions([]);
     try {
       const scheduleRows = await apiJson<PlatformReviewSchedule[]>("/api/v1/platform-review-schedules/ensure?priority_group=all", {
         method: "POST"
@@ -216,6 +290,7 @@ export default function AssignWorkerPage() {
     : [];
   const selectedAvailableCount = selectedTargetStates.filter((state) => state.kind === "available").length;
   const selectedExistingCount = selectedTargetStates.filter((state) => state.kind === "existing").length;
+  const selectedWorkerMissingFields = selectedWorker ? missingProfileFields(selectedWorker) : [];
 
   function onWorkerDragStart(event: DragEvent<HTMLButtonElement>, worker: Worker) {
     event.dataTransfer.setData("text/plain", String(worker.id));
@@ -270,21 +345,26 @@ export default function AssignWorkerPage() {
       return;
     }
     setBusy(true);
+    setCaptureActions([]);
     try {
-      let created = 0;
+      const createdRows: CreatedTransferRow[] = [];
       const docs = workerDocuments(documents, workerId);
       for (const target of enabledTargets) {
-        await createWorkerTransfer(workerId, target);
-        created += 1;
+        createdRows.push({ target, transfer: await createWorkerTransfer(workerId, target), kind: "worker" });
         for (const document of docs) {
           if (document.current_version_id) {
-            await createDocumentTransfer(document.current_version_id, target);
-            created += 1;
+            createdRows.push({
+              target,
+              transfer: await createDocumentTransfer(document.current_version_id, target),
+              kind: "document"
+            });
           }
         }
       }
+      const captureRows = await createCaptureRequestsForBlockedWorkerTransfers(createdRows, worker);
+      setCaptureActions(captureRows);
       const skipped = targetRows.length - enabledTargets.length;
-      setMessage(`${workerName(worker)} enviado a ${enabledTargets.length} plataforma(s): ${created} job(s) preparados. ${skipped ? `${skipped} destino(s) omitidos por existente/desactivado/sin conector.` : "Sin duplicados detectados."}`);
+      setMessage(buildTransferOutcomeMessage(workerName(worker), enabledTargets.length, createdRows.map((row) => row.transfer), skipped, captureRows.length));
       await refreshWorkerRegistrations(worker.id);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo preparar la asignacion.");
@@ -293,13 +373,72 @@ export default function AssignWorkerPage() {
     }
   }
 
+  async function createCaptureRequestsForBlockedWorkerTransfers(rows: CreatedTransferRow[], worker: Worker) {
+    const blockedTargets = uniqueTargets(
+      rows
+        .filter((row) => row.kind === "worker" && isBlockedTransfer(row.transfer) && row.target.account)
+        .map((row) => row.target)
+    );
+    const created: CaptureAction[] = [];
+    for (const target of blockedTargets) {
+      const accountId = target.account?.id;
+      if (!accountId) {
+        continue;
+      }
+      const run = await apiJson<PlatformReviewRun>(`/api/v1/exchange/${accountId}/capture-write-screen`, {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          operation: "upsert_worker",
+          request_comment: `Mapear alta de ${workerName(worker)} en ${target.title}. No guardar cambios ni subir ficheros.`
+        })
+      });
+      created.push({
+        requestId: run.id,
+        platformName: run.platform_name,
+        targetTitle: target.title,
+        workerName: workerName(worker),
+        url: `/rpa-gateway?request=${run.id}`
+      });
+    }
+    return created;
+  }
+
   async function refreshWorkerRegistrations(workerId: number) {
     const rows = await apiJson<WorkerPlatformRegistration[]>(`/api/v1/workers/${workerId}/platform-registrations`);
     setRegistrationsByWorker((current) => ({ ...current, [workerId]: rows }));
   }
 
+  async function loadSelectedWorkerWritePlan() {
+    const worker = workers.find((item) => item.id === selectedWorkerId);
+    if (!worker) {
+      setWritePlan(null);
+      return;
+    }
+    setWritePlanLoading(true);
+    try {
+      const plan = await apiJson<MassUpdatePlan>("/api/v1/exchange/mass-update/plan", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          company_id: worker.company_id,
+          worker_ids: [worker.id],
+          include_missing_workers: true,
+          include_document_requests: false,
+          only_active_contexts: true,
+          limit: 100
+        })
+      });
+      setWritePlan(plan);
+    } catch {
+      setWritePlan(null);
+    } finally {
+      setWritePlanLoading(false);
+    }
+  }
+
   async function createWorkerTransfer(workerId: number, target: PlatformTarget) {
-    await apiJson<Transfer>("/api/v1/transfers", {
+    return apiJson<Transfer>("/api/v1/transfers", {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({
@@ -315,7 +454,7 @@ export default function AssignWorkerPage() {
   }
 
   async function createDocumentTransfer(documentVersionId: number, target: PlatformTarget) {
-    await apiJson<Transfer>("/api/v1/transfers", {
+    return apiJson<Transfer>("/api/v1/transfers", {
       method: "POST",
       headers: jsonHeaders(),
       body: JSON.stringify({
@@ -345,6 +484,33 @@ export default function AssignWorkerPage() {
       <div className={`messageBar ${isErrorMessage(message) ? "error" : "ok"}`}>
         <span>{message}</span>
       </div>
+
+      {captureActions.length > 0 ? (
+        <section className="panel actionPanel">
+          <div className="sectionTitle">
+            <div>
+              <p className="eyebrow">Siguiente paso</p>
+              <h3>Pasarela de mapeo creada</h3>
+            </div>
+            <ExternalLink aria-hidden="true" size={18} />
+          </div>
+          <div className="platformDropList compact">
+            {captureActions.map((action) => (
+              <article className="platformDropTarget assignment-available" key={action.requestId}>
+                <div>
+                  <strong>{action.platformName} / {action.workerName}</strong>
+                  <small>{action.targetTitle}</small>
+                  <small>Abre la pasarela, entra con credenciales configuradas y captura la pantalla editable sin guardar cambios.</small>
+                </div>
+                <a className="secondaryButton inlineButton" href={action.url} target="_blank" rel="noreferrer">
+                  <ExternalLink aria-hidden="true" size={14} />
+                  Abrir pasarela #{action.requestId}
+                </a>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="splitPanels platformAssignLayout">
         <div className="panel">
@@ -405,6 +571,30 @@ export default function AssignWorkerPage() {
               </small>
             </span>
           </div>
+          {selectedWorker ? (
+            <section className="writeReadinessBox">
+              <div>
+                <strong>Preparacion escritura real</strong>
+                <small>
+                  {writePlanLoading
+                    ? "Analizando previews por plataforma..."
+                    : writePlan
+                      ? `${writePlan.summary.ready_for_submit} listo(s), ${writePlan.summary.blocked} bloqueado(s), ${writePlan.summary.with_live_helper} con helper live.`
+                      : "No se pudo calcular el plan de escritura."}
+                </small>
+              </div>
+              {selectedWorkerMissingFields.length ? (
+                <div className="readinessWarning">
+                  <AlertTriangle aria-hidden="true" size={15} />
+                  <span>
+                    Ficha ARM incompleta: {selectedWorkerMissingFields.join(", ")}.
+                    <a href={`/arm?worker=${selectedWorker.id}`}> Completar en ARM</a>
+                  </span>
+                </div>
+              ) : null}
+              {writePlan ? <WritePlanSummary plan={writePlan} /> : null}
+            </section>
+          ) : null}
           <div className="platformDropList">
             {targets.map((target) => {
               const state = selectedWorker
@@ -589,6 +779,116 @@ function workerAssignmentSummary(worker: Worker, targets: PlatformTarget[], regi
   return `${available} disponibles / ${existing} ya existentes`;
 }
 
+function uniqueTargets(targets: PlatformTarget[]) {
+  const seen = new Set<string>();
+  const rows: PlatformTarget[] = [];
+  for (const target of targets) {
+    if (seen.has(target.key)) {
+      continue;
+    }
+    seen.add(target.key);
+    rows.push(target);
+  }
+  return rows;
+}
+
+function missingProfileFields(worker: Worker) {
+  const fields: string[] = [];
+  if (!worker.identifier_last4) {
+    fields.push("DNI/NIE");
+  }
+  if (!worker.nationality) {
+    fields.push("nacionalidad");
+  }
+  if (!worker.contract_type) {
+    fields.push("contrato");
+  }
+  if (!worker.work_position) {
+    fields.push("puesto");
+  }
+  if (!worker.social_security_last4) {
+    fields.push("numero SS");
+  }
+  return fields;
+}
+
+function WritePlanSummary({ plan }: { plan: MassUpdatePlan }) {
+  const blockerCounts = new Map<string, number>();
+  for (const action of plan.actions) {
+    if (action.ready_for_submit) {
+      continue;
+    }
+    const key = action.preview_status === "blocked_local_data_required"
+      ? "faltan datos ARM"
+      : action.preview_status === "blocked_mapping_review_required"
+        ? "falta mapeo editable"
+        : action.preview_status === "blocked_no_write_connector"
+          ? "sin conector"
+          : action.preview_status;
+    blockerCounts.set(key, (blockerCounts.get(key) ?? 0) + 1);
+  }
+  const topBlockers = [...blockerCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const liveBlocked = plan.actions.find((action) => action.live_adapter_status === "specific_live_adapter_available" && !action.ready_for_submit);
+  return (
+    <div className="writePlanSummary">
+      {topBlockers.map(([label, count]) => (
+        <span className="statusBadge orange" key={label}>{count} {label}</span>
+      ))}
+      {liveBlocked ? (
+        <small>
+          Helper live bloqueado en {liveBlocked.platform_name}: {firstBlockerDetail(liveBlocked)}
+        </small>
+      ) : null}
+    </div>
+  );
+}
+
+function firstBlockerDetail(action: MassUpdateAction) {
+  const first = action.blockers[0];
+  if (!first) {
+    return action.next_action;
+  }
+  if (first.standard_key) {
+    return `${first.standard_key}: ${first.detail}`;
+  }
+  return first.detail;
+}
+
+function buildTransferOutcomeMessage(workerLabel: string, targetCount: number, jobs: Transfer[], skipped: number, captureRequestCount = 0) {
+  const blockedJobs = jobs.filter(isBlockedTransfer);
+  const confirmedJobs = jobs.filter(isConfirmedTransfer);
+  const skippedText = skipped ? ` ${skipped} destino(s) omitidos por existente/desactivado/sin conector.` : "";
+  const captureText = captureRequestCount ? ` Pasarela(s) de mapeo creadas: ${captureRequestCount}.` : "";
+  if (blockedJobs.length) {
+    const firstReason = blockedJobs.find((job) => job.last_attempt_message)?.last_attempt_message ?? blockedStatusReason(blockedJobs[0]);
+    return `Bloqueado: ${workerLabel} tiene ${jobs.length} job(s) preparados para ${targetCount} plataforma(s), pero ${blockedJobs.length} no se han escrito fuera. ${firstReason}${captureText}${skippedText}`;
+  }
+  if (confirmedJobs.length) {
+    return `${workerLabel} confirmado en ${targetCount} plataforma(s): ${confirmedJobs.length} escritura(s) con lectura posterior. ${jobs.length - confirmedJobs.length} job(s) restantes preparados.${skippedText}`;
+  }
+  return `${workerLabel} preparado para ${targetCount} plataforma(s): ${jobs.length} job(s) creados. Pendiente de ejecucion/confirmacion externa.${skippedText || " Sin duplicados detectados."}`;
+}
+
+function isBlockedTransfer(job: Transfer) {
+  const status = `${job.status} ${job.last_attempt_status ?? ""}`.toLowerCase();
+  return status.includes("blocked") || status.includes("mapping_review_required") || status.includes("live_adapter_missing");
+}
+
+function isConfirmedTransfer(job: Transfer) {
+  const status = `${job.status} ${job.last_attempt_status ?? ""}`.toLowerCase();
+  return status.includes("confirmed_external") || job.post_write_read_confirmed === true;
+}
+
+function blockedStatusReason(job: Transfer) {
+  if (job.status.includes("mapping_review_required")) {
+    return "Faltan mapeos/editable capture aprobados para poder ejecutar escritura real.";
+  }
+  if (job.status.includes("live_adapter_missing")) {
+    return "Falta helper live especifico con lectura previa, submit y lectura posterior.";
+  }
+  return `Estado: ${job.status}.`;
+}
+
 function workerName(worker: Worker) {
   return `${worker.first_name} ${worker.last_name}`.trim();
 }
@@ -604,5 +904,5 @@ function renderStatus(status: StatusColor, label: string) {
 }
 
 function isErrorMessage(message: string) {
-  return message.startsWith("HTTP") || message.startsWith("No se") || message.startsWith("Invalid") || message.includes("error") || message.includes("token");
+  return message.startsWith("HTTP") || message.startsWith("No se") || message.startsWith("Invalid") || message.startsWith("Bloqueado") || message.includes("error") || message.includes("token");
 }

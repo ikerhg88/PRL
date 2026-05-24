@@ -14,6 +14,7 @@ from app.db.models import (
     PlatformRpaManifest,
     PlatformRpaMappingProposal,
     PlatformStructureSnapshot,
+    PlatformWritePath,
 )
 from app.services.platform_data_coverage import CANONICAL_KEY_ALIASES
 from app.services.platform_mapping import STANDARD_LABELS, STANDARD_LABELS_BY_KEY, StandardLabel
@@ -81,6 +82,19 @@ EDITABLE_OPERATION_REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
 
 PLATFORM_OPERATION_REQUIRED_KEYS: dict[tuple[str, str], tuple[str, ...]] = {
     (
+        "ctaima",
+        "upsert_worker",
+    ): (
+        "worker.identifier_value",
+        "worker.social_security_number",
+        "worker.first_name",
+        "worker.last_name",
+        "worker.email",
+        "worker.phone",
+        "worker.work_position",
+        "worker.contract_type",
+    ),
+    (
         "seisconecta",
         "upsert_worker",
     ): (
@@ -136,6 +150,11 @@ def build_platform_edit_methods(
         tenant_id=tenant_id,
         manifest_ids=manifest_ids,
     )
+    write_paths_by_context = _write_paths_by_context(
+        session,
+        tenant_id=tenant_id,
+        manifest_ids=manifest_ids,
+    )
 
     contexts: list[dict[str, Any]] = []
     totals = {
@@ -164,11 +183,17 @@ def build_platform_edit_methods(
                 labels_by_account=labels_by_account,
             )
             mappings_by_key = mappings_by_manifest.get(manifest.id, {})
+            write_paths_by_key = _context_write_paths_by_key(
+                manifest=manifest,
+                account=account,
+                write_paths_by_context=write_paths_by_context,
+            )
             field_methods = [
                 _field_method(
                     standard,
                     labels=labels_by_key.get(standard.key, []),
                     mappings=mappings_by_key.get(standard.key, []),
+                    write_paths=write_paths_by_key.get(standard.key, []),
                     snapshots=snapshots,
                     manifest=manifest,
                     account=account,
@@ -334,6 +359,51 @@ def _mappings_by_manifest(
     return result
 
 
+def _write_paths_by_context(
+    session: Session,
+    *,
+    tenant_id: int,
+    manifest_ids: list[int],
+) -> dict[tuple[int, int | None], list[PlatformWritePath]]:
+    result: dict[tuple[int, int | None], list[PlatformWritePath]] = defaultdict(list)
+    if not manifest_ids:
+        return result
+    rows = session.scalars(
+        select(PlatformWritePath).where(
+            PlatformWritePath.tenant_id == tenant_id,
+            PlatformWritePath.manifest_id.in_(manifest_ids),
+            PlatformWritePath.review_status.in_(("pending_review", "approved", "needs_capture_refresh")),
+        )
+    )
+    for row in rows:
+        result[(row.manifest_id, row.account_proposal_id)].append(row)
+    return result
+
+
+def _context_write_paths_by_key(
+    *,
+    manifest: PlatformRpaManifest,
+    account: PlatformRpaAccountProposal | None,
+    write_paths_by_context: dict[tuple[int, int | None], list[PlatformWritePath]],
+) -> dict[str, list[PlatformWritePath]]:
+    rows: list[PlatformWritePath] = []
+    rows.extend(write_paths_by_context.get((manifest.id, None), []))
+    if account is not None:
+        rows.extend(write_paths_by_context.get((manifest.id, account.id), []))
+    result: dict[str, list[PlatformWritePath]] = defaultdict(list)
+    seen: set[int] = set()
+    for row in rows:
+        if row.id in seen:
+            continue
+        seen.add(row.id)
+        field_paths = row.field_paths_json or {}
+        for key in field_paths:
+            canonical = _canonical_key(str(key), "field")
+            if canonical:
+                result[canonical].append(row)
+    return result
+
+
 def _context_labels_by_key(
     *,
     manifest: PlatformRpaManifest,
@@ -362,14 +432,29 @@ def _field_method(
     *,
     labels: list[PlatformDiscoveredLabel],
     mappings: list[PlatformRpaMappingProposal],
+    write_paths: list[PlatformWritePath],
     snapshots: dict[int, PlatformStructureSnapshot],
     manifest: PlatformRpaManifest,
     account: PlatformRpaAccountProposal | None,
 ) -> dict[str, Any]:
     editable_labels = [label for label in labels if label.label_kind in EDITABLE_LABEL_KINDS]
     mapping_statuses = sorted({mapping.review_status for mapping in mappings})
-    status = _field_status(standard=standard, editable_labels=editable_labels, labels=labels, mappings=mappings)
-    method = _method_name(standard=standard, has_editable_evidence=bool(editable_labels), status=status)
+    approved_write_paths = [path for path in write_paths if path.review_status == "approved"]
+    pending_write_paths = [path for path in write_paths if path.review_status != "approved"]
+    status = _field_status(
+        standard=standard,
+        editable_labels=editable_labels,
+        labels=labels,
+        mappings=mappings,
+        approved_write_paths=approved_write_paths,
+        pending_write_paths=pending_write_paths,
+    )
+    method = _method_name(
+        standard=standard,
+        has_editable_evidence=bool(editable_labels),
+        has_approved_write_path=bool(approved_write_paths),
+        status=status,
+    )
     return {
         "standard_key": standard.key,
         "display_name": standard.display_name,
@@ -389,11 +474,16 @@ def _field_method(
         "sensitive": standard.key in SENSITIVE_KEYS,
         "observed_labels": [_label_evidence(label, snapshots) for label in labels[:8]],
         "mapping_candidates": [_mapping_evidence(mapping) for mapping in mappings[:8]],
+        "write_path_evidence": [_write_path_evidence(path) for path in write_paths[:8]],
+        "approved_write_path_operations": sorted({path.operation for path in approved_write_paths}),
+        "pending_write_path_operations": sorted({path.operation for path in pending_write_paths}),
         "evidence_summary": {
             "observed_label_count": len(labels),
             "editable_label_count": len(editable_labels),
             "mapping_count": len(mappings),
             "mapping_review_statuses": mapping_statuses,
+            "write_path_count": len(write_paths),
+            "approved_write_path_count": len(approved_write_paths),
         },
         "next_action": _field_next_action(status),
     }
@@ -405,25 +495,39 @@ def _field_status(
     editable_labels: list[PlatformDiscoveredLabel],
     labels: list[PlatformDiscoveredLabel],
     mappings: list[PlatformRpaMappingProposal],
+    approved_write_paths: list[PlatformWritePath],
+    pending_write_paths: list[PlatformWritePath],
 ) -> str:
     if standard.key == "platform.login.password":
         return "credential_secret_only"
     if standard.key in READBACK_ONLY_KEYS:
         return "not_external_edit_target"
+    if approved_write_paths:
+        return "ready_for_preview"
     if editable_labels:
         return "ready_for_preview"
     if any(mapping.review_status == "approved" for mapping in mappings):
         return "needs_editable_capture"
-    if labels or mappings:
+    if labels or mappings or pending_write_paths:
         return "needs_mapping_review"
     return "needs_mapping"
 
 
-def _method_name(*, standard: StandardLabel, has_editable_evidence: bool, status: str) -> str:
+def _method_name(
+    *,
+    standard: StandardLabel,
+    has_editable_evidence: bool,
+    has_approved_write_path: bool,
+    status: str,
+) -> str:
     if status == "credential_secret_only":
         return "inject_from_configured_secret_store_at_login"
     if status == "not_external_edit_target":
         return "readback_only_no_edit_method"
+    if has_approved_write_path and not has_editable_evidence:
+        if standard.data_type == "file":
+            return "upload_file_by_approved_captured_path"
+        return "fill_by_approved_captured_path"
     if not has_editable_evidence:
         return "capture_edit_screen_before_method_binding"
     if standard.data_type == "file":
@@ -501,6 +605,24 @@ def _mapping_evidence(mapping: PlatformRpaMappingProposal) -> dict[str, Any]:
     }
 
 
+def _write_path_evidence(path: PlatformWritePath) -> dict[str, Any]:
+    field_paths = path.field_paths_json or {}
+    return {
+        "write_path_id": path.id,
+        "operation": path.operation,
+        "path_kind": path.path_kind,
+        "path_label": path.path_label,
+        "host": path.host,
+        "entry_path": path.entry_path,
+        "review_status": path.review_status,
+        "status": path.status,
+        "capture_run_id": path.capture_run_id,
+        "source_evidence_ref": path.source_evidence_ref,
+        "field_keys": sorted(str(key) for key in field_paths),
+        "has_readback_paths": bool(path.readback_paths_json),
+    }
+
+
 def _field_next_action(status: str) -> str:
     if status == "ready_for_preview":
         return "Crear preview de escritura con valores ARM y guardar auditoria antes/despues."
@@ -528,9 +650,9 @@ def _operation_methods(*, manifest: PlatformRpaManifest, field_methods: list[dic
         required = list(operation_required_keys(manifest.platform_slug, operation_name))
         required_fields = [field_by_key[key] for key in required if key in field_by_key]
         blocking_statuses = {
-            field["status"]
+            _field_status_for_operation(field, operation_name)
             for field in required_fields
-            if field["status"]
+            if _field_status_for_operation(field, operation_name)
             not in {
                 "ready_for_preview",
                 "credential_secret_only",
@@ -540,12 +662,12 @@ def _operation_methods(*, manifest: PlatformRpaManifest, field_methods: list[dic
         missing_keys = sorted(
             field["standard_key"]
             for field in required_fields
-            if field["status"] in {"needs_mapping", "needs_mapping_review"}
+            if _field_status_for_operation(field, operation_name) in {"needs_mapping", "needs_mapping_review"}
         )
         needs_capture_keys = sorted(
             field["standard_key"]
             for field in required_fields
-            if field["status"] == "needs_editable_capture"
+            if _field_status_for_operation(field, operation_name) == "needs_editable_capture"
         )
         status = _operation_status(blocking_statuses=blocking_statuses)
         operations.append(
@@ -556,7 +678,8 @@ def _operation_methods(*, manifest: PlatformRpaManifest, field_methods: list[dic
                 "ready_keys": sorted(
                     field["standard_key"]
                     for field in required_fields
-                    if field["status"] in {"ready_for_preview", "credential_secret_only"}
+                    if _field_status_for_operation(field, operation_name)
+                    in {"ready_for_preview", "credential_secret_only"}
                 ),
                 "missing_or_unreviewed_keys": missing_keys,
                 "needs_editable_capture_keys": needs_capture_keys,
@@ -574,6 +697,17 @@ def operation_required_keys(platform_slug: str, operation: str) -> tuple[str, ..
         (platform_slug, operation),
         EDITABLE_OPERATION_REQUIRED_KEYS[operation],
     )
+
+
+def _field_status_for_operation(field: dict[str, Any], operation: str) -> str:
+    approved_operations = set(field.get("approved_write_path_operations") or [])
+    pending_operations = set(field.get("pending_write_path_operations") or [])
+    if operation in approved_operations:
+        return "ready_for_preview"
+    status = str(field.get("status") or "needs_mapping")
+    if operation in pending_operations and status == "needs_mapping":
+        return "needs_mapping_review"
+    return status
 
 
 def _operation_status(*, blocking_statuses: set[str]) -> str:

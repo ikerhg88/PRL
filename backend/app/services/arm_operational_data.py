@@ -44,24 +44,24 @@ class ArmOperationalDataResult:
 
 
 ARM_WORKERS: tuple[ArmWorkerSpec, ...] = (
-    ArmWorkerSpec("Alicia", "Gomez Moreno", ("alicia gomez", "gomez moreno alicia", "alicia")),
-    ArmWorkerSpec("Bruno", "Lopez Martin", ("bruno lopez", "bruno", "manu")),
-    ArmWorkerSpec("Carlos", "Perez Ruiz", ("carlos perez ruiz", "carlos", "carlos")),
-    ArmWorkerSpec("Daniel", "Torres Vidal", ("daniel torres vidal", "daniel")),
-    ArmWorkerSpec("Eduardo", "Ramos Nunez", ("eduardo ramos nunez", "eduardo"), "000T"),
-    ArmWorkerSpec("Fernando", "Ortega Cano", ("fernando ortega cano", "fernando")),
-    ArmWorkerSpec("Hugo", "Molina Vera", ("hugo molina vera", "hugo", "hugo"), "111X"),
-    ArmWorkerSpec("Mario", "Santos Vega", ("mario santos", "santos mario", "mario", "mario")),
+    ArmWorkerSpec("Eleder", "Bilbao Egusquiza", ("eleder bilbao", "bilbao egusquiza eleder", "eleder")),
+    ArmWorkerSpec("Jose Manuel", "Alvarez Colmenero", ("jose manuel alvarez", "jose manuel", "manu")),
+    ArmWorkerSpec("Santiago", "Garcia Fernandez", ("santiago garcia fernandez", "santiago", "santi")),
+    ArmWorkerSpec("Alejandro", "Serrano Moya", ("alejandro serrano moya", "alejandro")),
+    ArmWorkerSpec("Alfonso Luis", "Diaz Fernandez", ("alfonso luis diaz fernandez", "alfonso"), "387L"),
+    ArmWorkerSpec("David", "Martinez Augusto", ("david martinez augusto", "david")),
+    ArmWorkerSpec("Ivan", "Ruiz Monge", ("ivan ruiz monge", "ivan", "iva n"), "109X"),
+    ArmWorkerSpec("Pedro Javier", "Garcia", ("pedro javier garcia", "garcia pedro javier", "pedro javier", "pedro")),
     ArmWorkerSpec(
-        "Laura",
-        "Navarro Gil",
-        ("laura navarro gil", "navarro gil laura", "laura"),
+        "Elena",
+        "Gonzalez de San Roman Fernandez",
+        ("elena navarro gil", "glz de s roman fdz elena", "elena"),
     ),
-    ArmWorkerSpec("Nicolas", "Romero Soler", ("nicolas romero soler", "romero soler nicolas", "nicolas")),
+    ArmWorkerSpec("Joan Antoni", "Ramos Pujol", ("joan antoni ramos pujol", "ramos pujol joan antoni", "joan antoni")),
 )
 
 WORKER_DOCUMENT_FALLBACKS = {
-    "formacio n metal y reciclaje 28 03 2023 pdf": "bruno lopez",
+    "formacio n metal y reciclaje 28 03 2023 pdf": "jose manuel alvarez",
 }
 
 
@@ -77,7 +77,7 @@ def normalize_arm_operational_data(
     if company is None:
         raise RuntimeError("ARM company not found. Run the local demo seed first.")
 
-    company.name = "Empresa Demo Industrial, S.L."
+    company.name = "ARM Industrial Assemblies, S.L."
     company.company_type = "own"
     company.status = "active"
 
@@ -254,7 +254,7 @@ def _looks_like_test_worker(worker: Worker) -> bool:
         or name.startswith("empleado prueba")
         or name.startswith("e2etestapi")
         or "pendiente revisar" in name
-        or name == "bruno lopez"
+        or name == "jose manuel lopez"
         or "live seisconecta" in name
         or "alta plataforma" in name
     )
@@ -362,7 +362,7 @@ def _worker_document_type(filename_key: str, type_by_code: dict[str, DocumentTyp
         return type_by_code["ARM.WORKER.PRL_60H_COURSE"]
     if "confidencialidad" in filename_key or "confidecialidad" in filename_key:
         return type_by_code["ARM.WORKER.CLIENT_CONFIDENTIALITY"]
-    if "cliente_f" in filename_key or "cliente_c" in filename_key:
+    if "bridgestone" in filename_key or "mercedes" in filename_key:
         return type_by_code["ARM.WORKER.CLIENT_INDUCTION"]
     if "herramienta" in filename_key or "maquina" in filename_key:
         return type_by_code["ARM.WORKER.TOOL_USE_AUTHORIZATION"]

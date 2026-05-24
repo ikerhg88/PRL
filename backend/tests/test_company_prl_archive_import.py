@@ -39,15 +39,15 @@ def test_company_prl_archive_import_maps_workers_company_docs_and_docx(
             "ARM/Relacion personal DNI-SS ARM.docx",
             _docx_bytes(
                 "RELACION DE PERSONAL TRABAJADOR F. NACIMIENTO DNI CORREO ELECTRONICO TELEFONO S. SOCIAL "
-                "1 MARIO SANTOS 01/01/1980 00000000T worker@example.invalid 600000000 280000000000"
+                "1 PEDRO JAVIER GARCIA 01/01/1980 12345678Z pedro@arm-assemblies.com 600111222 281234567812"
             ),
         )
         archive.writestr(
-            "ARM/TRABAJADORES/SANTOS, MARIO/DOCUMENTACION PLATAFORMAS/Mario_EPIS 10-11-2025.pdf",
+            "ARM/TRABAJADORES/GARCIA, PEDRO JAVIER/DOCUMENTACION PLATAFORMAS/Pedro Javier_EPIS 10-11-2025.pdf",
             b"%PDF-1.4\nepi",
         )
         archive.writestr(
-            "ARM/TRABAJADORES/NAVARRO GIL, LAURA/DOCUMENTACION PERSONAL/DNI LAURA 21-07-2031.pdf",
+            "ARM/TRABAJADORES/GLZ. DE S.ROMAN FDZ, ELENA/DOCUMENTACION PERSONAL/DNI ELENA 21-07-2031.pdf",
             b"%PDF-1.4\ndni",
         )
         archive.writestr("ARM/cache/thumbs.db", b"ignored")
@@ -77,16 +77,16 @@ def test_company_prl_archive_import_maps_workers_company_docs_and_docx(
         assert company is not None
         workers = list(session.scalars(select(Worker).order_by(Worker.first_name)))
         assert [(worker.first_name, worker.last_name) for worker in workers] == [
-            ("Laura", "Navarro Gil"),
-            ("Mario", "Santos Vega"),
+            ("Elena", "Gonzalez de San Roman Fernandez"),
+            ("Pedro Javier", "Garcia"),
         ]
-        mario = next(worker for worker in workers if worker.first_name == "Mario")
-        assert mario.identifier_value == "00000000T"
-        assert mario.identifier_hash is not None
-        assert mario.identifier_last4 == "000T"
-        assert mario.email == "worker@example.invalid"
-        assert mario.phone == "600000000"
-        assert mario.social_security_number == "280000000000"
+        pedro = next(worker for worker in workers if worker.first_name == "Pedro Javier")
+        assert pedro.identifier_value == "12345678Z"
+        assert pedro.identifier_hash is not None
+        assert pedro.identifier_last4 == "678Z"
+        assert pedro.email == "pedro@arm-assemblies.com"
+        assert pedro.phone == "600111222"
+        assert pedro.social_security_number == "281234567812"
         documents = list(session.scalars(select(Document)))
         versions = list(session.scalars(select(DocumentVersion)))
         intakes = list(session.scalars(select(DocumentIntake)))
@@ -148,7 +148,7 @@ def test_company_only_archive_does_not_remove_existing_workers(
         session.flush()
         company = Company(
             tenant_id=tenant.id,
-            name="Empresa Demo Industrial, S.L.",
+            name="ARM Industrial Assemblies, S.L.",
             tax_id="B95868543",
             company_type="own",
             status="active",
@@ -158,7 +158,7 @@ def test_company_only_archive_does_not_remove_existing_workers(
         worker = Worker(
             tenant_id=tenant.id,
             company_id=company.id,
-            first_name="Alicia",
+            first_name="Eleder",
             last_name="Gomez",
             status="active",
             employment_status="active",
@@ -176,7 +176,7 @@ def test_company_only_archive_does_not_remove_existing_workers(
 
         assert result.workers_removed == 0
         workers = list(session.scalars(select(Worker).order_by(Worker.id)))
-        assert [(item.first_name, item.last_name) for item in workers] == [("Alicia", "Gomez")]
+        assert [(item.first_name, item.last_name) for item in workers] == [("Eleder", "Gomez")]
 
 
 def _docx_bytes(text: str) -> bytes:

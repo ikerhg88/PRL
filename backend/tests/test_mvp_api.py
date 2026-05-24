@@ -53,7 +53,7 @@ def test_company_worker_document_requirement_flow(client: TestClient) -> None:
             "first_name": "Ana",
             "last_name": "Lopez",
             "identifier_type": "dni",
-            "identifier_value": "00000000T",
+            "identifier_value": "00000387L",
             "identifier_hash": "hash-redacted",
             "identifier_last4": "1234",
             "identifier_expires_at": (date.today() + timedelta(days=365)).isoformat(),
@@ -70,7 +70,7 @@ def test_company_worker_document_requirement_flow(client: TestClient) -> None:
             "medical_fitness_provider": "Servicio PRL",
         },
     ).json()
-    assert worker["identifier_value"] == "00000000T"
+    assert worker["identifier_value"] == "00000387L"
     assert worker["identifier_last4"] == "1234"
     assert worker["social_security_number"] == "280000000000"
     assert worker["social_security_last4"] == "7788"
@@ -311,7 +311,7 @@ def test_worker_manual_delete_bulk_import_erp_and_profile_links(client: TestClie
         headers=headers,
         json={
             "work_name": "Obra Manual",
-            "client_company_name": "Cliente Demo",
+            "client_company_name": "Hondaemo",
             "role": "Oficial",
             "status": "active",
         },
@@ -337,7 +337,7 @@ def test_worker_manual_delete_bulk_import_erp_and_profile_links(client: TestClie
         headers=headers,
         json={
             "work_name": "Obra Manual Revisada",
-            "client_company_name": "Cliente Demo",
+            "client_company_name": "Hondaemo",
             "role": "Recurso preventivo",
             "status": "active",
         },
@@ -416,8 +416,8 @@ def test_transfer_demo_and_manual_export_zip(client: TestClient) -> None:
             "first_name": "Alta",
             "last_name": "Demo",
             "identifier_type": "dni",
-            "identifier_value": "00000000T",
-            "identifier_last4": "000T",
+            "identifier_value": "00000387L",
+            "identifier_last4": "387L",
             "work_position": "Operario de prueba",
             "medical_fitness_status": "apto",
         },
@@ -782,7 +782,7 @@ def test_document_intake_bulk_zip_creates_pending_company_proposals(client: Test
     company = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Empresa Demo Industrial", "tax_id": "B12345678", "company_type": "own"},
+        json={"name": "ARM Industrial Assemblies", "tax_id": "B12345678", "company_type": "own"},
     ).json()
     client.post(
         "/api/v1/document-types",
@@ -843,15 +843,15 @@ def test_worker_intake_proposals_preview_and_import(client: TestClient) -> None:
     company = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Empresa Demo Industrial", "tax_id": "B87654321", "company_type": "own"},
+        json={"name": "ARM Industrial Assemblies", "tax_id": "B87654321", "company_type": "own"},
     ).json()
     payload = BytesIO()
     with ZipFile(payload, "w") as archive:
-        archive.writestr("Diploma_ALTURA_Bruno_Lopez.txt", "curso altura")
+        archive.writestr("Diploma_ALTURA_Jose_Manuel_Alvarez.txt", "curso altura")
         archive.writestr("Manu_metal_4_horas_28-03-2023.txt", "curso metal")
-        archive.writestr("6_-_ART.19_Fernando_-_22-07-2025.txt", "articulo 19")
+        archive.writestr("6_-_ART.19_David_-_22-07-2025.txt", "articulo 19")
         archive.writestr(
-            "6_-_Art.19_-_20-11-25_EDUARDO_-_Diploma_curso_PRL_00000000T_.txt",
+            "6_-_Art.19_-_20-11-25_ALFONSO_-_Diploma_curso_PRL_00000387L_.txt",
             "articulo 19",
         )
     bulk_response = client.post(
@@ -873,13 +873,13 @@ def test_worker_intake_proposals_preview_and_import(client: TestClient) -> None:
     ).json()
     proposal_by_name = {item["display_name"]: item for item in proposals}
     assert set(proposal_by_name) == {
-        "Eduardo Pendiente revisar",
-        "Fernando Pendiente revisar",
-        "Bruno Lopez",
+        "Alfonso Pendiente revisar",
+        "David Pendiente revisar",
+        "Jose Manuel Alvarez",
     }
-    assert proposal_by_name["Bruno Lopez"]["status"] == "new"
-    assert len(proposal_by_name["Bruno Lopez"]["evidence_filenames"]) == 2
-    assert proposal_by_name["Fernando Pendiente revisar"]["status"] == "incomplete"
+    assert proposal_by_name["Jose Manuel Alvarez"]["status"] == "new"
+    assert len(proposal_by_name["Jose Manuel Alvarez"]["evidence_filenames"]) == 2
+    assert proposal_by_name["David Pendiente revisar"]["status"] == "incomplete"
 
     dry_run = client.post(
         "/api/v1/workers/import-from-intake",
@@ -917,7 +917,7 @@ def test_platform_structure_mapping_labels_compare_and_update(client: TestClient
     company = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Empresa Demo Industrial", "tax_id": "B99999991", "company_type": "own"},
+        json={"name": "ARM Industrial Assemblies", "tax_id": "B99999991", "company_type": "own"},
     ).json()
     platform = next(item for item in client.get("/api/v1/tenant-platforms/access", headers=headers).json() if item["platform_key"] == "mock_cae")
     capture = {
@@ -997,7 +997,7 @@ def test_arm_first_priority_contract_import_and_mapping_review(client: TestClien
         "/api/v1/companies",
         headers=headers,
         json={
-            "name": "Empresa Demo Industrial",
+            "name": "ARM Industrial Assemblies",
             "tax_id": "ARM-MAP-001",
             "company_type": "contractor",
             "address": "Poligono ARM",
@@ -1062,7 +1062,7 @@ def test_arm_first_priority_contract_import_and_mapping_review(client: TestClien
             "first_name": "Prueba",
             "last_name": "Seisconecta",
             "identifier_type": "dni",
-            "identifier_value": "00000000T",
+            "identifier_value": "00000387L",
             "identifier_last4": "0000",
             "nationality": "ES",
             "contract_type": "indefinido",
@@ -1158,6 +1158,7 @@ def test_arm_first_priority_contract_import_and_mapping_review(client: TestClien
     assert coverage["totals"]["pending_items"] > 0
     assert coverage["totals"]["pending_red"] > 0
     assert coverage["totals"]["pending_orange"] > 0
+    assert all(isinstance(blocker, str) for context in coverage["contexts"] for blocker in context["blockers"])
     ctaima_context = next(item for item in coverage["contexts"] if item["platform_slug"] == "ctaima")
     assert "CTAIMA" in ctaima_context["trace_label"]
     assert ctaima_context["pending_summary"]["total"] == len(ctaima_context["pending_items"])
@@ -1269,18 +1270,18 @@ def test_arm_available_write_platforms_preview_only_and_human_assisted(client: T
     company = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Empresa Demo Industrial", "tax_id": "B95868543", "company_type": "contractor"},
+        json={"name": "ARM Industrial Assemblies", "tax_id": "B95868543", "company_type": "contractor"},
     ).json()
     worker = client.post(
         "/api/v1/workers",
         headers=headers,
         json={
             "company_id": company["id"],
-            "first_name": "Alicia",
+            "first_name": "Eleder",
             "last_name": "Gomez",
             "identifier_type": "dni",
-            "identifier_value": "00000000T",
-            "identifier_last4": "000T",
+            "identifier_value": "00000387L",
+            "identifier_last4": "387L",
             "nationality": "ES",
             "contract_type": "indefinido",
             "work_position": "Montador",
@@ -1291,24 +1292,48 @@ def test_arm_available_write_platforms_preview_only_and_human_assisted(client: T
 
     import_response = client.post("/api/v1/platform-contracts/import/arm-all", headers=headers)
     assert import_response.status_code == 200
+    schedule_response = client.post("/api/v1/platform-review-schedules/ensure?priority_group=all", headers=headers)
+    assert schedule_response.status_code == 200
     manifests = client.get("/api/v1/platform-contracts/manifests", headers=headers).json()
     accounts = client.get("/api/v1/platform-contracts/accounts", headers=headers).json()
     manifest_by_id = {manifest["id"]: manifest for manifest in manifests}
     write_connector_by_slug = {
         "ctaima": "connector_rpa_ctaima_write",
+        "dokyfy": "connector_rpa_dokyfy_write",
         "e_coordina": "connector_rpa_e_coordina_write",
+        "egestiona": "connector_rpa_egestiona_write",
+        "folyo": "connector_rpa_folyo_write",
+        "iedoce": "connector_rpa_iedoce_write",
+        "integra_asem": "connector_rpa_integra_asem_write",
+        "koordinatu": "connector_rpa_koordinatu_write",
+        "metacontratas": "connector_rpa_metacontratas_write",
         "nomio": "connector_rpa_nomio_write",
+        "quioo": "connector_rpa_quioo_write",
+        "sgs_gestiona": "connector_rpa_sgs_gestiona_write",
         "seisconecta": "connector_rpa_seisconecta_write",
+        "smartosh": "connector_rpa_smartosh_write",
         "timenet": "connector_rpa_timenet_write",
+        "ucae": "connector_rpa_ucae_write",
         "validate": "connector_rpa_validate_write",
         "vitaly_cae": "connector_rpa_vitaly_cae_write",
     }
     platform_key_by_slug = {
         "ctaima": "ctaima_cae",
+        "dokyfy": "dokify",
         "e_coordina": "ecoordina",
+        "egestiona": "egestiona",
+        "folyo": "folyo",
+        "iedoce": "iedoce",
+        "integra_asem": "asemwebservices_integra",
+        "koordinatu": "koordinatu",
+        "metacontratas": "metacontratas",
         "nomio": "nomio",
+        "quioo": "quioo",
+        "sgs_gestiona": "sgs_gestiona",
         "seisconecta": "sixconecta",
+        "smartosh": "smartosh",
         "timenet": "timenet",
+        "ucae": "ucae",
         "validate": "validate",
         "vitaly_cae": "vitaly_cae",
     }
@@ -1325,14 +1350,19 @@ def test_arm_available_write_platforms_preview_only_and_human_assisted(client: T
     assert live_adapters.status_code == 200
     live_payload = live_adapters.json()
     assert live_payload["summary"]["platforms"] == 20
-    assert live_payload["summary"]["registered_write_connectors"] == 7
-    assert live_payload["summary"]["live_adapter_statuses"]["specific_live_adapter_available"] == 1
-    assert live_payload["summary"]["live_adapter_statuses"]["blocked_live_adapter_missing"] == 6
+    assert live_payload["summary"]["registered_write_connectors"] == 18
+    assert live_payload["summary"]["live_adapter_statuses"]["specific_live_adapter_available"] == 2
+    assert live_payload["summary"]["live_adapter_statuses"]["blocked_live_adapter_missing"] == 16
     seisconecta_adapter = next(row for row in live_payload["rows"] if row["platform_slug"] == "seisconecta")
     assert seisconecta_adapter["live_adapter_status"] == "specific_live_adapter_available"
+    assert seisconecta_adapter["helper_status"] == "live_implemented"
+    assert seisconecta_adapter["helper"]["script_path"] == "scripts/seisconecta_live_upsert_worker.py"
     ctaima_adapter = next(row for row in live_payload["rows"] if row["platform_slug"] == "ctaima")
-    assert ctaima_adapter["live_adapter_status"] == "blocked_live_adapter_missing"
-    assert "platform_specific_live_adapter" in ctaima_adapter["required_before_live_write"]
+    assert ctaima_adapter["live_adapter_status"] == "specific_live_adapter_available"
+    assert ctaima_adapter["helper_status"] == "live_implemented"
+    assert ctaima_adapter["helper"]["script_path"] == "scripts/ctaima_live_upsert_worker.py"
+    assert ctaima_adapter["helper"]["commercial_routes_or_selectors_invented"] is False
+    assert "pre_write_duplicate_readback" in ctaima_adapter["required_before_live_write"]
 
     write_matrix = client.get(
         "/api/v1/exchange/write-matrix",
@@ -1350,8 +1380,21 @@ def test_arm_available_write_platforms_preview_only_and_human_assisted(client: T
     assert matrix_payload["policy"]["commercial_routes_or_selectors_invented"] is False
     assert matrix_payload["summary"]["rows"] == 34
     assert matrix_payload["summary"]["external_writes_executed"] == 0
-    assert matrix_payload["summary"]["live_adapter_statuses"]["specific_live_adapter_available"] == 1
-    assert matrix_payload["summary"]["live_adapter_statuses"]["blocked_live_adapter_missing"] == len(writable_accounts) - 1
+    live_ready_account_rows = sum(
+        1
+        for account in writable_accounts
+        if manifest_by_id[account["manifest_id"]]["platform_slug"] in {"seisconecta", "ctaima"}
+    )
+    assert matrix_payload["summary"]["live_adapter_statuses"]["specific_live_adapter_available"] == live_ready_account_rows
+    assert (
+        matrix_payload["summary"]["live_adapter_statuses"]["blocked_live_adapter_missing"]
+        == len(writable_accounts) - live_ready_account_rows
+    )
+    assert any(
+        row["helper"]["status"] == "scaffolded_pending_capture"
+        for row in matrix_payload["rows"]
+        if row["write_connector_key"] and row["platform_slug"] not in {"seisconecta", "ctaima"}
+    )
     assert any(row["connector_dry_run_status"] for row in matrix_payload["rows"] if row["write_connector_key"])
 
     bulk_submit = client.post(
@@ -1373,6 +1416,47 @@ def test_arm_available_write_platforms_preview_only_and_human_assisted(client: T
     assert bulk_payload["summary"]["capture_requests_created"] == len(writable_accounts)
     assert bulk_payload["summary"]["external_writes_confirmed"] == 0
     assert {row["connector_key"] for row in bulk_payload["rows"]} == set(write_connector_by_slug.values())
+
+    mass_plan = client.post(
+        "/api/v1/exchange/mass-update/plan",
+        headers=headers,
+        json={
+            "company_id": company["id"],
+            "include_missing_workers": True,
+            "include_document_requests": False,
+            "only_active_contexts": False,
+            "limit": 20,
+        },
+    )
+    assert mass_plan.status_code == 200
+    mass_plan_payload = mass_plan.json()
+    assert mass_plan_payload["policy"]["external_write_executed"] is False
+    assert mass_plan_payload["policy"]["commercial_routes_or_selectors_invented"] is False
+    assert mass_plan_payload["summary"]["actions"] > 0
+    assert mass_plan_payload["summary"]["missing_workers"] == mass_plan_payload["summary"]["actions"]
+    assert {row["kind"] for row in mass_plan_payload["actions"]} == {"missing_worker"}
+
+    mass_submit = client.post(
+        "/api/v1/exchange/mass-update/submit",
+        headers=headers,
+        json={
+            "company_id": company["id"],
+            "include_missing_workers": True,
+            "include_document_requests": False,
+            "only_active_contexts": False,
+            "limit": 3,
+            "dry_run": True,
+            "manual_approval_required": True,
+            "create_capture_requests": True,
+        },
+    )
+    assert mass_submit.status_code == 200
+    mass_submit_payload = mass_submit.json()
+    assert mass_submit_payload["policy"]["external_routes_or_selectors_invented"] is False
+    assert mass_submit_payload["policy"]["requires_post_write_readback"] is True
+    assert mass_submit_payload["summary"]["selected_actions"] == 3
+    assert mass_submit_payload["summary"]["confirmed_external"] == 0
+    assert mass_submit_payload["summary"]["capture_requests_created"] >= 1
 
     bulk_capture = client.post(
         "/api/v1/exchange/capture-write-screens/bulk",
@@ -1500,13 +1584,98 @@ def test_arm_available_write_platforms_preview_only_and_human_assisted(client: T
     assert run["evidence_json"]["gateway"]["safe_controls"]["captcha_bypass"] is False
     assert run["evidence_json"]["gateway"]["safe_controls"]["mfa_bypass"] is False
 
+    required_upsert_keys = [
+        "worker.first_name",
+        "worker.last_name",
+        "worker.identifier_value",
+        "worker.social_security_number",
+        "worker.email",
+        "worker.phone",
+        "worker.work_position",
+        "worker.contract_type",
+    ]
+    write_path = client.post(
+        f"/api/v1/exchange/{ctaima_account['id']}/write-paths",
+        headers=headers,
+        json={
+            "operation": "upsert_worker",
+            "entity_scope": "worker",
+            "path_kind": "editable_form",
+            "path_label": "Alta trabajador CTAIMA capturada",
+            "entry_path": "/captured/worker-edit",
+            "field_paths": {
+                key: {
+                    "strategy": "observed_label_or_stable_name",
+                    "label": key,
+                    "source": "redacted_capture",
+                }
+                for key in required_upsert_keys
+            },
+            "selector_map": {
+                "submit": {
+                    "strategy": "observed_button",
+                    "label": "Guardar",
+                }
+            },
+            "readback_paths": {
+                "worker.identifier_value": {
+                    "strategy": "search_readback",
+                    "label": "DNI/NIE",
+                }
+            },
+            "source_evidence_ref": "platform_review_run:test-redacted-capture",
+            "metadata": {"source": "unit_test_redacted_capture"},
+        },
+    )
+    assert write_path.status_code == 201
+    write_path_payload = write_path.json()
+    assert write_path_payload["review_status"] == "pending_review"
+    assert write_path_payload["field_paths"]["worker.first_name"]["source"] == "redacted_capture"
+
+    approved_path = client.post(
+        f"/api/v1/exchange/write-paths/{write_path_payload['id']}/review",
+        headers=headers,
+        json={"review_status": "approved", "notes": "Captura editable revisada."},
+    )
+    assert approved_path.status_code == 200
+    assert approved_path.json()["review_status"] == "approved"
+    assert approved_path.json()["status"] == "approved_for_preview_and_readback"
+
+    listed_paths = client.get(
+        "/api/v1/exchange/write-paths",
+        headers=headers,
+        params={"account_proposal_id": ctaima_account["id"], "operation": "upsert_worker"},
+    )
+    assert listed_paths.status_code == 200
+    assert listed_paths.json()[0]["id"] == write_path_payload["id"]
+
+    mapped_preview = client.post(
+        f"/api/v1/exchange/{ctaima_account['id']}/preview",
+        headers=headers,
+        json={
+            "operation": "upsert_worker",
+            "company_id": company["id"],
+            "worker_id": worker["id"],
+        },
+    )
+    assert mapped_preview.status_code == 200
+    mapped_preview_payload = mapped_preview.json()
+    assert mapped_preview_payload["status"] in {"preview_ready", "blocked_local_data_required"}
+    assert mapped_preview_payload["readiness"]["mapping_ready"] is True
+    assert mapped_preview_payload["policy"]["stores_only_reviewed_captured_write_paths"] is True
+    assert all(
+        field["approved_write_path_count"] == 1
+        for field in mapped_preview_payload["fields"]
+        if field["standard_key"] in required_upsert_keys
+    )
+
 
 def test_worker_transfer_blocks_legacy_registration_without_platform_account_id(client: TestClient) -> None:
     _tenant, headers = _tenant_admin(client, "Tenant ARM Legacy Registration Guard")
     company = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Empresa Demo Industrial", "tax_id": "B95868543", "company_type": "contractor"},
+        json={"name": "ARM Industrial Assemblies", "tax_id": "B95868543", "company_type": "contractor"},
     ).json()
     worker = client.post(
         "/api/v1/workers",
@@ -1566,7 +1735,7 @@ def test_arm_authorization_dashboard_reports_worker_and_platform_incidents(clien
     company = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Empresa Demo Industrial", "tax_id": "ARM000001", "company_type": "contractor"},
+        json={"name": "ARM Industrial Assemblies", "tax_id": "ARM000001", "company_type": "contractor"},
     ).json()
     import_response = client.post("/api/v1/platform-contracts/import/arm-first-priority", headers=headers)
     assert import_response.status_code == 200
@@ -1634,7 +1803,7 @@ def test_arm_authorization_dashboard_reports_worker_and_platform_incidents(clien
             "platform_name": "e-coordina",
             "registration_status": "missing_required_document",
             "assignment_scope": "ARM",
-            "notes": "CLIENTE_A: falta Entrega de EPIs para Alicia Gomez.",
+            "notes": "SOFIDEL: falta Entrega de EPIs para Eleder Bilbao.",
         },
     )
 
@@ -1644,7 +1813,7 @@ def test_arm_authorization_dashboard_reports_worker_and_platform_incidents(clien
     )
     assert response.status_code == 200
     dashboard = response.json()
-    assert dashboard["company"]["name"] == "Empresa Demo Industrial"
+    assert dashboard["company"]["name"] == "ARM Industrial Assemblies"
     assert dashboard["overall_status"] == "red"
     assert dashboard["totals"]["platforms"] == 6
     assert dashboard["totals"]["workers"] == 2
@@ -1955,17 +2124,17 @@ def test_user_can_access_multiple_companies_without_seeing_unassigned_companies(
     company_a = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Cliente A", "tax_id": "A22222222", "company_type": "client"},
+        json={"name": "Sofidel", "tax_id": "A22222222", "company_type": "client"},
     ).json()
     company_b = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Cliente B", "tax_id": "B22222222", "company_type": "client"},
+        json={"name": "Renault", "tax_id": "B22222222", "company_type": "client"},
     ).json()
     company_c = client.post(
         "/api/v1/companies",
         headers=headers,
-        json={"name": "Cliente C", "tax_id": "C22222222", "company_type": "client"},
+        json={"name": "Mercedes", "tax_id": "C22222222", "company_type": "client"},
     ).json()
     worker_a = client.post(
         "/api/v1/workers",

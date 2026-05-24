@@ -7,16 +7,22 @@ from sqlalchemy import select
 
 from app.api.dependencies import ActorUserId, DbSession, TenantId, require_tenant
 from app.api.transfers import create_transfer
-from app.connectors.rpa.write_registry import write_connector_key_for_platform_slug
+from app.connectors.rpa.write_registry import live_adapter_status_for_connector_key, write_connector_key_for_platform_slug
 from app.db.models import ExternalPlatform, PlatformRpaAccountProposal, PlatformRpaManifest
 from app.db.models import PlatformReviewRun
 from app.schemas import (
     ExchangeBulkCaptureWriteScreensRequest,
     ExchangeBulkWorkerSubmitRequest,
     ExchangeCaptureWriteScreenRequest,
+    ExchangeMassUpdatePlanRequest,
+    ExchangeMassUpdateSubmitRequest,
+    ExchangeWriteMaturationRequest,
     ExchangeWritePreviewRead,
     ExchangeWritePreviewRequest,
     ExchangeWriteSubmitRequest,
+    PlatformWritePathCreate,
+    PlatformWritePathRead,
+    PlatformWritePathReviewUpdate,
     PlatformReviewRunRead,
     TransferRead,
     TransferRequest,
@@ -24,10 +30,18 @@ from app.schemas import (
 from app.services.access_control import require_tenant_wide_access
 from app.services.audit import public_state, record_audit
 from app.services.platform_write_previews import WritePreviewError, build_write_operation_preview
+from app.services.platform_mass_update import build_mass_update_plan
+from app.services.platform_write_maturation import mature_platform_write_readiness
+from app.services.platform_write_paths import (
+    PlatformWritePathError,
+    list_write_paths,
+    set_write_path_review_status,
+    upsert_write_path_for_account,
+    write_path_to_read,
+)
 from app.services.platform_current_accounts_sync import INACTIVE_STATUSES, account_is_inactive
 from app.services.platform_write_probe_matrix import (
     DEFAULT_WRITE_MATRIX_OPERATIONS,
-    SPECIFIC_LIVE_ADAPTER_CONNECTORS,
     build_platform_write_probe_matrix,
     live_write_adapter_catalog,
 )
@@ -72,6 +86,181 @@ def get_exchange_live_adapters(
     require_tenant(session, tenant_id)
     require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
     return live_write_adapter_catalog(session, tenant_id=tenant_id)
+
+
+@router.post("/write-readiness/mature")
+def mature_exchange_write_readiness(
+    payload: ExchangeWriteMaturationRequest,
+    tenant_id: TenantId,
+    session: DbSession,
+    actor_user_id: ActorUserId,
+) -> dict[str, Any]:
+    require_tenant(session, tenant_id)
+    require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
+    result = mature_platform_write_readiness(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        platform_slugs=payload.platform_slugs,
+        account_proposal_ids=payload.account_proposal_ids,
+        create_missing_capture_requests=payload.create_missing_capture_requests,
+        authorize_capture_requests=payload.authorize_capture_requests,
+        launch_browsers=payload.launch_browsers,
+        sync_available_captures=payload.sync_available_captures,
+        approve_valid_captured_paths=payload.approve_valid_captured_paths,
+        max_browser_launches=payload.max_browser_launches,
+    )
+    record_audit(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        action="exchange.write_readiness_mature",
+        entity_type="platform_rpa_account_proposal",
+        entity_id=None,
+        after=public_state(
+            {
+                "filters": {
+                    "platform_slugs": payload.platform_slugs,
+                    "account_proposal_ids": payload.account_proposal_ids,
+                    "launch_browsers": payload.launch_browsers,
+                    "max_browser_launches": payload.max_browser_launches,
+                },
+                "summary": result["summary"],
+            }
+        ),
+    )
+    session.commit()
+    return result
+
+
+@router.get("/write-paths", response_model=list[PlatformWritePathRead])
+def get_exchange_write_paths(
+    tenant_id: TenantId,
+    session: DbSession,
+    actor_user_id: ActorUserId,
+    account_proposal_id: int | None = Query(default=None),
+    manifest_id: int | None = Query(default=None),
+    operation: str | None = Query(default=None),
+    review_status: str | None = Query(default=None),
+) -> list[dict[str, Any]]:
+    require_tenant(session, tenant_id)
+    require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
+    rows = list_write_paths(
+        session,
+        tenant_id=tenant_id,
+        account_proposal_id=account_proposal_id,
+        manifest_id=manifest_id,
+        operation=operation,
+        review_status=review_status,
+    )
+    return [write_path_to_read(row) for row in rows]
+
+
+@router.post("/{account_proposal_id}/write-paths", response_model=PlatformWritePathRead, status_code=201)
+def create_exchange_write_path(
+    account_proposal_id: int,
+    payload: PlatformWritePathCreate,
+    tenant_id: TenantId,
+    session: DbSession,
+    actor_user_id: ActorUserId,
+) -> dict[str, Any]:
+    require_tenant(session, tenant_id)
+    require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
+    try:
+        path = upsert_write_path_for_account(
+            session,
+            tenant_id=tenant_id,
+            account_proposal_id=account_proposal_id,
+            operation=payload.operation,
+            entity_scope=payload.entity_scope,
+            path_kind=payload.path_kind,
+            path_label=payload.path_label,
+            entry_path=payload.entry_path,
+            field_paths=payload.field_paths,
+            selector_map=payload.selector_map,
+            readback_paths=payload.readback_paths,
+            capture_run_id=payload.capture_run_id,
+            source_evidence_ref=payload.source_evidence_ref,
+            metadata=payload.metadata,
+            actor_user_id=actor_user_id,
+        )
+    except PlatformWritePathError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    record_audit(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        action="exchange.write_path_upserted",
+        entity_type="platform_write_path",
+        entity_id=path.id,
+        after=public_state(
+            {
+                "id": path.id,
+                "account_proposal_id": path.account_proposal_id,
+                "manifest_id": path.manifest_id,
+                "operation": path.operation,
+                "path_kind": path.path_kind,
+                "review_status": path.review_status,
+                "field_path_count": len(path.field_paths_json or {}),
+                "readback_path_count": len(path.readback_paths_json or {}),
+                "source_evidence_ref": path.source_evidence_ref,
+                "external_write_executed": False,
+            }
+        ),
+    )
+    session.commit()
+    return write_path_to_read(path)
+
+
+@router.post("/write-paths/{path_id}/review", response_model=PlatformWritePathRead)
+def review_exchange_write_path(
+    path_id: int,
+    payload: PlatformWritePathReviewUpdate,
+    tenant_id: TenantId,
+    session: DbSession,
+    actor_user_id: ActorUserId,
+) -> dict[str, Any]:
+    require_tenant(session, tenant_id)
+    require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
+    existing = list_write_paths(session, tenant_id=tenant_id)
+    before = next((write_path_to_read(row) for row in existing if row.id == path_id), None)
+    try:
+        path = set_write_path_review_status(
+            session,
+            tenant_id=tenant_id,
+            path_id=path_id,
+            review_status=payload.review_status,
+            notes=payload.notes,
+            actor_user_id=actor_user_id,
+        )
+    except PlatformWritePathError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    record_audit(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        action="exchange.write_path_reviewed",
+        entity_type="platform_write_path",
+        entity_id=path.id,
+        before=public_state(
+            {
+                "review_status": before["review_status"] if before else None,
+                "status": before["status"] if before else None,
+            }
+        ),
+        after=public_state(
+            {
+                "id": path.id,
+                "review_status": path.review_status,
+                "status": path.status,
+                "approved_by": path.approved_by,
+                "approved_at": path.approved_at.isoformat() if path.approved_at else None,
+                "external_write_executed": False,
+            }
+        ),
+    )
+    session.commit()
+    return write_path_to_read(path)
 
 
 @router.post("/capture-write-screens/bulk")
@@ -207,9 +396,7 @@ async def bulk_submit_worker_to_platforms(
             "external_company_name": account.external_company_name,
             "platform_key": platform.platform_key,
             "connector_key": connector_key,
-            "live_adapter_status": "specific_live_adapter_available"
-            if connector_key in SPECIFIC_LIVE_ADAPTER_CONNECTORS
-            else "blocked_live_adapter_missing",
+            "live_adapter_status": live_adapter_status_for_connector_key(connector_key),
         }
         try:
             preview = build_write_operation_preview(
@@ -320,6 +507,209 @@ async def bulk_submit_worker_to_platforms(
         after=public_state(
             {
                 "worker_id": payload.worker_id,
+                "dry_run": payload.dry_run,
+                "manual_approval_required": payload.manual_approval_required,
+                "live_external_write_authorized": payload.live_external_write_authorized,
+                "summary": summary,
+            }
+        ),
+    )
+    session.commit()
+    return {
+        "policy": {
+            "external_routes_or_selectors_invented": False,
+            "captcha_bypass": False,
+            "mfa_bypass": False,
+            "requires_preview": True,
+            "requires_human_approval": True,
+            "requires_post_write_readback": True,
+        },
+        "summary": summary,
+        "rows": rows,
+    }
+
+
+@router.post("/mass-update/plan")
+def plan_mass_platform_updates(
+    payload: ExchangeMassUpdatePlanRequest,
+    tenant_id: TenantId,
+    session: DbSession,
+    actor_user_id: ActorUserId,
+) -> dict[str, Any]:
+    require_tenant(session, tenant_id)
+    require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
+    plan = build_mass_update_plan(
+        session,
+        tenant_id=tenant_id,
+        company_id=payload.company_id,
+        platform_slugs=payload.platform_slugs,
+        account_proposal_ids=payload.account_proposal_ids,
+        worker_ids=payload.worker_ids,
+        include_missing_workers=payload.include_missing_workers,
+        include_document_requests=payload.include_document_requests,
+        only_active_contexts=payload.only_active_contexts,
+        limit=payload.limit,
+    )
+    record_audit(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        action="exchange.mass_update_plan",
+        entity_type="platform_rpa_account_proposal",
+        entity_id=None,
+        after=public_state(
+            {
+                "filters": plan["filters"],
+                "summary": plan["summary"],
+                "external_write_executed": False,
+            }
+        ),
+    )
+    session.commit()
+    return plan
+
+
+@router.post("/mass-update/submit")
+async def submit_mass_platform_updates(
+    payload: ExchangeMassUpdateSubmitRequest,
+    tenant_id: TenantId,
+    session: DbSession,
+    actor_user_id: ActorUserId,
+) -> dict[str, Any]:
+    require_tenant(session, tenant_id)
+    require_tenant_wide_access(session, tenant_id=tenant_id, user_id=actor_user_id)
+    selected_action_ids = {action_id for action_id in payload.action_ids if action_id}
+    plan = build_mass_update_plan(
+        session,
+        tenant_id=tenant_id,
+        company_id=payload.company_id,
+        platform_slugs=payload.platform_slugs,
+        account_proposal_ids=payload.account_proposal_ids,
+        worker_ids=payload.worker_ids,
+        include_missing_workers=payload.include_missing_workers,
+        include_document_requests=payload.include_document_requests,
+        only_active_contexts=payload.only_active_contexts,
+        limit=payload.limit,
+    )
+    rows: list[dict[str, Any]] = []
+    for action in plan["actions"]:
+        if selected_action_ids and action["action_id"] not in selected_action_ids:
+            continue
+        row_base = {
+            "action_id": action["action_id"],
+            "kind": action["kind"],
+            "operation": action["operation"],
+            "account_proposal_id": action["account_proposal_id"],
+            "platform_slug": action["platform_slug"],
+            "platform_name": action["platform_name"],
+            "external_company_name": action["external_company_name"],
+            "preview_status": action["preview_status"],
+        }
+        if action["preview_status"] != "preview_ready":
+            capture_request_id = _maybe_create_capture_request_for_action(
+                session,
+                tenant_id=tenant_id,
+                actor_user_id=actor_user_id,
+                action=action,
+                enabled=payload.create_capture_requests and bool(action.get("capture_recommended")),
+                reason=str(action.get("next_action") or action["preview_status"]),
+            )
+            rows.append(
+                row_base
+                | {
+                    "status": "blocked_preview_not_ready",
+                    "transfer_id": None,
+                    "transfer_status": None,
+                    "capture_request_id": capture_request_id,
+                    "detail": action.get("next_action"),
+                }
+            )
+            continue
+        if action["connector_key"] is None:
+            rows.append(
+                row_base
+                | {
+                    "status": "blocked_no_write_connector",
+                    "transfer_id": None,
+                    "transfer_status": None,
+                    "capture_request_id": None,
+                    "detail": "No hay conector de escritura registrado.",
+                }
+            )
+            continue
+        try:
+            transfer = await create_transfer(
+                TransferRequest(
+                    platform_key=action["platform_key"],
+                    connector_key=cast(Any, action["connector_key"]),
+                    operation=cast(Any, action["operation"]),
+                    worker_id=action.get("worker_id"),
+                    document_version_id=action.get("document_version_id"),
+                    account_proposal_id=action["account_proposal_id"],
+                    dry_run=payload.dry_run,
+                    manual_approval_required=payload.manual_approval_required,
+                    live_external_write_authorized=payload.live_external_write_authorized,
+                ),
+                tenant_id,
+                session,
+                actor_user_id,
+            )
+            capture_request_id = None
+            if transfer.status in {"blocked_mapping_review_required", "blocked_live_adapter_missing"}:
+                capture_request_id = _maybe_create_capture_request_for_action(
+                    session,
+                    tenant_id=tenant_id,
+                    actor_user_id=actor_user_id,
+                    action=action,
+                    enabled=payload.create_capture_requests,
+                    reason=f"transfer_status={transfer.status}",
+                )
+            rows.append(
+                row_base
+                | {
+                    "status": transfer.status,
+                    "transfer_id": transfer.id,
+                    "transfer_status": transfer.status,
+                    "capture_request_id": capture_request_id,
+                    "detail": transfer.last_attempt_message,
+                }
+            )
+        except HTTPException as exc:
+            capture_request_id = _maybe_create_capture_request_for_action(
+                session,
+                tenant_id=tenant_id,
+                actor_user_id=actor_user_id,
+                action=action,
+                enabled=payload.create_capture_requests and "ya existe" not in str(exc.detail).lower(),
+                reason=str(exc.detail),
+            )
+            rows.append(
+                row_base
+                | {
+                    "status": "blocked_submit",
+                    "transfer_id": None,
+                    "transfer_status": None,
+                    "capture_request_id": capture_request_id,
+                    "detail": exc.detail,
+                }
+            )
+    summary = {
+        "planned_actions": len(plan["actions"]),
+        "selected_actions": len(rows),
+        "transfer_jobs_created": sum(1 for row in rows if row["transfer_id"] is not None),
+        "capture_requests_created": sum(1 for row in rows if row["capture_request_id"] is not None),
+        "blocked": sum(1 for row in rows if str(row["status"]).startswith("blocked")),
+        "confirmed_external": sum(1 for row in rows if row["status"] == "confirmed_external"),
+    }
+    record_audit(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        action="exchange.mass_update_submit",
+        entity_type="platform_rpa_account_proposal",
+        entity_id=None,
+        after=public_state(
+            {
                 "dry_run": payload.dry_run,
                 "manual_approval_required": payload.manual_approval_required,
                 "live_external_write_authorized": payload.live_external_write_authorized,
@@ -657,3 +1047,32 @@ def _maybe_create_capture_request(
         return None
     session.flush()
     return run.id
+
+
+def _maybe_create_capture_request_for_action(
+    session: DbSession,
+    *,
+    tenant_id: int,
+    actor_user_id: int | None,
+    action: dict[str, Any],
+    enabled: bool,
+    reason: str,
+) -> int | None:
+    if not enabled:
+        return None
+    account = session.scalar(
+        select(PlatformRpaAccountProposal).where(
+            PlatformRpaAccountProposal.tenant_id == tenant_id,
+            PlatformRpaAccountProposal.id == action["account_proposal_id"],
+        )
+    )
+    if account is None:
+        return None
+    return _maybe_create_capture_request(
+        session,
+        tenant_id=tenant_id,
+        actor_user_id=actor_user_id,
+        account=account,
+        enabled=True,
+        reason=reason,
+    )

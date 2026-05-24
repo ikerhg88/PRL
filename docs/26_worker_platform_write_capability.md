@@ -22,7 +22,8 @@ aprobacion humana y parada ante captcha/MFA o pantalla inesperada.
 
 ## Estado real actual
 
-Hay siete conectores RPA de escritura registrados:
+Hay dieciocho conectores RPA de escritura registrados para las plataformas ARM
+actuales:
 
 - `connector_rpa_e_coordina_write`
 - `connector_rpa_seisconecta_write`
@@ -31,11 +32,34 @@ Hay siete conectores RPA de escritura registrados:
 - `connector_rpa_timenet_write`
 - `connector_rpa_validate_write`
 - `connector_rpa_vitaly_cae_write`
+- `connector_rpa_dokyfy_write`
+- `connector_rpa_egestiona_write`
+- `connector_rpa_folyo_write`
+- `connector_rpa_iedoce_write`
+- `connector_rpa_integra_asem_write`
+- `connector_rpa_koordinatu_write`
+- `connector_rpa_metacontratas_write`
+- `connector_rpa_quioo_write`
+- `connector_rpa_sgs_gestiona_write`
+- `connector_rpa_smartosh_write`
+- `connector_rpa_ucae_write`
 
 Solo `connector_rpa_seisconecta_write` tiene escritura live validada en cuenta
 dummy autorizada, para la operacion `upsert_worker`. Desde 2026-05-20 una
 escritura solo se considera valida cuando la lectura posterior confirma al
 trabajador en la plataforma.
+
+Actualizacion 2026-05-23:
+
+- Todos los conectores de escritura exponen metadatos de helper mediante
+  `helper_spec`: helper, modulo, estado, operaciones soportadas y requisitos.
+- `6conecta` queda como `live_implemented` y apunta al script
+  `scripts/seisconecta_live_upsert_worker.py`.
+- El resto queda como `scaffolded_pending_capture`: existe helper especifico de
+  plataforma a nivel de contrato y bloqueo, pero no escritura live operativa.
+  Por tanto si se intenta `dry_run=false` siguen devolviendo
+  `blocked_live_adapter_missing` hasta tener captura editable, mapeo aprobado,
+  lectura previa anti-duplicado, submit y lectura posterior.
 
 ## Matriz actual por plataforma
 
@@ -99,9 +123,36 @@ Actualizacion de rutas 2026-05-21:
   - `POST /api/v1/exchange/{account_proposal_id}/capture-write-screen`: crea
     una peticion de pasarela humana `capture_write_screen` para capturar pantalla
     editable redaccionada sin guardar cambios ni subir ficheros.
+  - `GET /api/v1/exchange/write-paths`: lista rutas de escritura guardadas por
+    plataforma+empresa/centro, operacion y estado de revision.
+  - `POST /api/v1/exchange/{account_proposal_id}/write-paths`: guarda o
+    actualiza un path de escritura observado para una cuenta concreta. El path
+    puede incluir ruta de entrada, estrategia de campos, selectores/labels
+    redaccionados y readback; se crea siempre en `pending_review`.
+  - `POST /api/v1/exchange/write-paths/{path_id}/review`: aprueba, rechaza o
+    devuelve a revision un path. Para aprobar exige field paths, readback paths
+    y evidencia/captura asociada; no ejecuta escrituras externas.
 - Skill local creado y validado:
   `C:/Users/ikerh/.codex/skills/iprl-cae-platform-write-method`. Resume el
   metodo obligatorio para nuevas rutas/adaptadores de escritura.
+
+Persistencia de paths 2026-05-21:
+
+- Nueva tabla `platform_write_paths`, con migracion
+  `0016_platform_write_paths`, para conservar paths por tenant, manifiesto,
+  cuenta externa, plataforma, operacion y contexto.
+- `build_platform_edit_methods` y los previews de Exchange consumen paths
+  `approved` como evidencia de mapeo real. Si hay path pendiente, el sistema
+  sigue mostrando `blocked_mapping_review_required`; si el path cubre los
+  campos pero faltan datos ARM, el bloqueo pasa a `blocked_local_data_required`.
+- La matriz `GET /api/v1/exchange/write-matrix` informa cuantas filas tienen
+  paths guardados o aprobados, sin lanzar navegador ni ejecutar submit externo.
+- Al sincronizar una pasarela `capture_write_screen`, el Hub genera paths
+  pendientes por operacion cuando la captura contiene campos editables
+  reconocidos. Esos paths no habilitan preview hasta revision y no se pueden
+  aprobar sin `readback_paths`.
+- No se almacenan credenciales ni valores de trabajadores en esos paths. Solo
+  rutas/estrategias observadas y redaccionadas, enlazadas a evidencia.
 
 Prueba operativa 2026-05-21:
 
@@ -116,19 +167,62 @@ Prueba operativa 2026-05-21:
 - Resto de cuentas: 13 peticiones `capture_write_screen` creadas para mapear
   pantallas editables antes de escribir: runs `#12` a `#24`.
 
-Prueba Alicia 2026-05-21:
+Prueba Eleder 2026-05-21:
 
-- Trabajador: `#11 Alicia Gomez`.
+- Trabajador: `#11 Eleder Bilbao`.
 - Estado local: faltan datos ARM obligatorios para alta en plataformas
   (`identifier_value`, nacionalidad, contrato, puesto, contacto y otros campos
   segun proveedor).
 - Resultado por cuentas con conector:
-  - CTAIMA/CLIENTE_A: `already_exists_external`; no se puede dar de alta porque ya
+  - CTAIMA/SOFIDEL: `already_exists_external`; no se puede dar de alta porque ya
     existe en esa cuenta, estado actual `missing_required_document`.
   - 6conecta: `blocked_submit` por `blocked_local_data_required`.
-  - CTAIMA no Cliente A, e-coordina, Nomio, Timenet, Validate y Vitaly:
+  - CTAIMA no Sofidel, e-coordina, Nomio, Timenet, Validate y Vitaly:
     `blocked_submit` por mapeo/helper live pendiente.
 - Pasarelas creadas: runs `#25` a `#37` para captura editable y mapeo.
+
+Actualizacion 2026-05-24:
+
+- El probe de escritura conserva ahora la readiness del preview aunque el
+  anti-duplicado bloquee la escritura con `already_registered`. Esto evita
+  ocultar que una operacion puede construir preview tecnico aunque no sea
+  elegible para submit live.
+- Matriz regenerada:
+  `artifacts/platform-write-probes/platform_write_probe_20260524-123623.*`.
+- Resultado actual: 32 contextos, 224 operaciones, 1 fila `preview_ready`,
+  1 fila `mapping_ready`, 2 filas con paths de escritura guardados, 0 filas con
+  paths live aprobados y 0 escrituras externas ejecutadas.
+- La fila lista para preview es `6conecta / VELARTIA IGORRE / CONGELADOS
+  DENAVARRA / upsert_worker`, pero el trabajador candidato `#27 Joan Antoni
+  Ramos Pujol` ya consta como confirmado en esa cuenta (`external=5711223`),
+  por lo que el submit live debe seguir bloqueado por anti-duplicado.
+- Para ejecutar una escritura real segura hace falta seleccionar un trabajador
+  real no registrado, con DNI/NIE, nacionalidad, contrato y puesto completos,
+  generar preview, activar la cuenta/live con aprobacion explicita y confirmar
+  lectura posterior. Captcha/MFA, avisos legales y bloqueos de cuenta siguen
+  siendo pasos humanos, no automatizados.
+
+Actualizacion Eleder/CTAIMA 2026-05-23:
+
+- Al reintentar el alta desde `/assign-worker`, el Hub creo y lanzo la pasarela
+  CTAIMA/GRUPO `#175` con navegador visible, credenciales configuradas y perfil
+  persistente.
+- La lectura llego a `Mis Recursos >> Trabajadores` y observo cuatro
+  trabajadores ya dados de alta en esa cuenta: Jose Manuel Alvarez, Eleder
+  Bilbao, Santiago Garcia e Ivan Ruiz.
+- Eleder Bilbao quedo persistido en el Hub como
+  `WorkerPlatformRegistration #13`, `platform_account_id=12`, estado
+  `confirmed`, origen `rpa_readback_capture`, `external_worker_id=2506`.
+- No se ejecuto escritura externa porque el trabajador ya existia. A partir de
+  esta lectura, el alta en esa cuenta debe bloquearse como duplicado confirmado.
+- La pasarela sigue sin generar `write_paths` de alta porque CTAIMA no mostro
+  una pantalla editable de creacion; solo se observo listado y rutas de edicion
+  existentes.
+- Diagnostico de lectura: la pasarela anterior `#174` tenia
+  `target_signals.eleder=true`, pero `observed_workers=0`; por eso el Hub sabia
+  que aparecia el texto "Eleder" sin tener una fila de trabajador, DNI parcial
+  ni ID externo que pudiese persistir como alta existente. La captura `#175`
+  corrige esto con filas observadas y sincronizacion posterior.
 
 Pasarelas globales 2026-05-21:
 
@@ -266,7 +360,7 @@ validada.
 
 1. Completar `6conecta/upload_worker_document`, porque el alta de trabajador sin
    documentos no resuelve el flujo CAE completo.
-2. Capturar pantalla editable de trabajador en CTAIMA/CLIENTE_A y mapear
+2. Capturar pantalla editable de trabajador en CTAIMA/SOFIDEL y mapear
    `upsert_worker` con la misma profundidad que 6conecta.
 3. Repetir por e-coordina, Validate, Vitaly CAE, Timenet y Nomio.
 4. Anadir en `/workers` un panel de "Publicacion en plataformas" que desde una

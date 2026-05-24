@@ -81,7 +81,7 @@ Cada operación externa debe ejecutarse como job asíncrono:
 
 Usa API oficial/documentada. Requisitos:
 
-- Cliente HTTP tipado.
+- InverburTTP tipado.
 - Autenticación segura.
 - Idempotency keys.
 - Reintentos.

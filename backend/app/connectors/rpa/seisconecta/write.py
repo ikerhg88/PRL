@@ -25,6 +25,9 @@ class SeisConectaWriteConnector(ConfiguredWriteConnector):
     connector_key = profile.connector_key
     display_name = profile.display_name
     platform_slug = profile.platform_slug
+    live_helper_status = "live_implemented"
+    live_helper_module_path = "app.connectors.rpa.seisconecta.write"
+    live_helper_script_path = "scripts/seisconecta_live_upsert_worker.py"
 
     async def upsert_worker(
         self,
